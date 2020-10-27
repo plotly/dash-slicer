@@ -1,7 +1,5 @@
-import base64
-
-import skimage
 import PIL.Image
+import skimage
 import numpy as np
 import plotly.graph_objects as go
 from plotly.utils import ImageUriValidator
@@ -60,7 +58,7 @@ class DashVolumeSlicer:
     def __init__(self, app, volume, axis=0):
 
         assert isinstance(app, dash.Dash)
-        if not isinstance(volume, np.ndarray) and image.ndim == 3:
+        if not (isinstance(volume, np.ndarray) and volume.ndim == 3):
             raise TypeError("DashVolumeSlicer expects a 3D numpy array")
 
         self._id = "thereisonlyoneslicerfornow"

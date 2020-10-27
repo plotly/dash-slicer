@@ -3,7 +3,7 @@ Dash 3d viewer - a tool to make it easy to build slice-views on 3D image data.
 """
 
 
-from .slicer import DashVolumeSlicer
+from .slicer import DashVolumeSlicer  # noqa: F401
 
 
 __version__ = "0.0.1"
