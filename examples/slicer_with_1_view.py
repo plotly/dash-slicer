@@ -17,4 +17,4 @@ app.layout = html.Div([slicer.graph, slicer.slider, *slicer.stores])
 
 
 if __name__ == "__main__":
-    app.run_server(debug=True)
+    app.run_server(debug=False)

@@ -1,6 +1,12 @@
+import random
+
 import PIL.Image
 import skimage
 from plotly.utils import ImageUriValidator
+
+
+def gen_random_id(n=6):
+    return "".join(random.choice("abcdefghijklmnopqrtsuvwxyz") for i in range(n))
 
 
 def img_array_to_uri(img_array):
