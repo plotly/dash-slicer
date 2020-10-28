@@ -67,6 +67,7 @@ class DashVolumeSlicer:
             )
         )
         # Wrap the figure in a graph
+        # todo: or should the user provide this?
         self.graph = Graph(
             id=self._subid("graph"),
             figure=fig,
