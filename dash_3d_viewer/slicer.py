@@ -11,27 +11,28 @@ class DashVolumeSlicer:
     """A slicer to show 3D image data in Dash."""
 
     def __init__(self, app, volume, axis=0, id=None):
-
-        assert isinstance(app, Dash)
-
+        if not isinstance(app, Dash):
+            raise TypeError("Expect first arg to be a Dash app.")
+        # Check and store volume
         if not (isinstance(volume, np.ndarray) and volume.ndim == 3):
-            raise TypeError("DashVolumeSlicer expects a 3D numpy array")
+            raise TypeError("Expected volume to be a 3D numpy array")
         self._volume = volume
-
+        # Check and store axis
+        if not (isinstance(axis, int) and 0 <= self._axis <= 2):
+            raise ValueError("The given axis must be 0, 1, or 2.")
+        self._axis = int(axis)
+        # Check and store id
         if id is None:
             id = gen_random_id()
         elif not isinstance(id, str):
             raise TypeError("Id must be a string")
         self._id = id
 
-        self._axis = int(axis)
-        self._max_slice = self._volume.shape[self._axis]
-        assert 0 <= self._axis <= 2
-
-        # Get the slice size (width, height)
+        # Get the slice size (width, height), and max index
         arr_shape = list(volume.shape)
         arr_shape.pop(self._axis)
         slice_size = list(reversed(arr_shape))
+        self._max_index = self._volume.shape[self._axis] - 1
 
         # Create the figure object
         fig = Figure()
@@ -77,9 +78,9 @@ class DashVolumeSlicer:
         self.slider = Slider(
             id=self._subid("slider"),
             min=0,
-            max=self._max_slice - 1,
+            max=self._max_index,
             step=1,
-            value=self._max_slice // 2,
+            value=self._max_index // 2,
             updatemode="drag",
         )
         # Create the stores that we need (these must be present in the layout)
@@ -89,18 +90,22 @@ class DashVolumeSlicer:
             Store(id=self._subid("_slice-data"), data=""),
         ]
 
-        self._create_server_handlers(app)
-        self._create_client_handlers(app)
+        self._create_server_callbacks(app)
+        self._create_client_callbacks(app)
 
     def _subid(self, subid):
+        """Given a subid, get the full id including the slicer's prefix."""
         return self._id + "-" + subid
 
     def _slice(self, index):
+        """Sample a slice from the volume."""
         indices = [slice(None), slice(None), slice(None)]
         indices[self._axis] = index
         return self._volume[tuple(indices)]
 
-    def _create_server_handlers(self, app):
+    def _create_server_callbacks(self, app):
+        """Create the callbacks that run server-side."""
+
         @app.callback(
             Output(self._subid("_slice-data"), "data"),
             [Input(self._subid("_requested-slice-index"), "data")],
@@ -110,7 +115,8 @@ class DashVolumeSlicer:
             slice = (slice.astype(np.float32) * (255 / slice.max())).astype(np.uint8)
             return [slice_index, img_array_to_uri(slice)]
 
-    def _create_client_handlers(self, app):
+    def _create_client_callbacks(self, app):
+        """Create the callbacks that run client-side."""
 
         app.clientside_callback(
             """
