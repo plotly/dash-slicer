@@ -18,7 +18,7 @@ class DashVolumeSlicer:
             raise TypeError("Expected volume to be a 3D numpy array")
         self._volume = volume
         # Check and store axis
-        if not (isinstance(axis, int) and 0 <= self._axis <= 2):
+        if not (isinstance(axis, int) and 0 <= axis <= 2):
             raise ValueError("The given axis must be 0, 1, or 2.")
         self._axis = int(axis)
         # Check and store id
