@@ -34,6 +34,12 @@ class DashVolumeSlicer:
         slice_size = list(reversed(arr_shape))
         self._max_index = self._volume.shape[self._axis] - 1
 
+        # Prep low-res slices
+        thumbnails = [
+            img_array_to_uri(self._slice(i), (32, 32))
+            for i in range(self._max_index + 1)
+        ]
+
         # Create the figure object
         fig = Figure()
         fig.update_layout(
@@ -88,6 +94,7 @@ class DashVolumeSlicer:
             Store(id=self._subid("slice-index"), data=volume.shape[self._axis] // 2),
             Store(id=self._subid("_requested-slice-index"), data=0),
             Store(id=self._subid("_slice-data"), data=""),
+            Store(id=self._subid("_slice-data-lowres"), data=thumbnails),
         ]
 
         self._create_server_callbacks(app)
@@ -101,7 +108,8 @@ class DashVolumeSlicer:
         """Sample a slice from the volume."""
         indices = [slice(None), slice(None), slice(None)]
         indices[self._axis] = index
-        return self._volume[tuple(indices)]
+        im = self._volume[tuple(indices)]
+        return (im.astype(np.float32) * (255 / im.max())).astype(np.uint8)
 
     def _create_server_callbacks(self, app):
         """Create the callbacks that run server-side."""
@@ -112,7 +120,6 @@ class DashVolumeSlicer:
         )
         def upload_requested_slice(slice_index):
             slice = self._slice(slice_index)
-            slice = (slice.astype(np.float32) * (255 / slice.max())).astype(np.uint8)
             return [slice_index, img_array_to_uri(slice)]
 
     def _create_client_callbacks(self, app):
@@ -158,7 +165,7 @@ class DashVolumeSlicer:
 
         app.clientside_callback(
             """
-        function handle_incoming_slice(index, index_and_data, ori_figure) {
+        function handle_incoming_slice(index, index_and_data, ori_figure, lowres) {
             let new_index = index_and_data[0];
             let new_data = index_and_data[1];
             // Store data in cache
@@ -167,9 +174,11 @@ class DashVolumeSlicer:
             slice_cache[new_index] = new_data;
             // Get the data we need *now*
             let data = slice_cache[index];
+            //slice_cache[new_index] = undefined;  // todo: disabled cache for now!
             // Maybe we do not need an update
             if (!data) {
-                return window.dash_clientside.no_update;
+                // return window.dash_clientside.no_update;
+                data = lowres[index];
             }
             if (data == ori_figure.layout.images[0].source) {
                 return window.dash_clientside.no_update;
@@ -188,5 +197,8 @@ class DashVolumeSlicer:
                 Input(self._subid("slice-index"), "data"),
                 Input(self._subid("_slice-data"), "data"),
             ],
-            [State(self._subid("graph"), "figure")],
+            [
+                State(self._subid("graph"), "figure"),
+                State(self._subid("_slice-data-lowres"), "data"),
+            ],
         )
