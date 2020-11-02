@@ -1,10 +1,13 @@
 import numpy as np
-from plotly.graph_objects import Figure
+from plotly.graph_objects import Figure, Image
 from dash import Dash
 from dash.dependencies import Input, Output, State
 from dash_core_components import Graph, Slider, Store
 
 from .utils import gen_random_id, img_array_to_uri
+
+
+empty_img_str = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGNgAAAAAgABSK+kcQAAAABJRU5ErkJggg=="
 
 
 class DashVolumeSlicer:
@@ -40,38 +43,27 @@ class DashVolumeSlicer:
             for i in range(self._max_index + 1)
         ]
 
+        # Create a placeholder trace
+        # todo: can add "%{z[0]}", but that would be the scaled value ...
+        trace = Image(source=empty_img_str, hovertemplate="(%{x}, %{y})<extra></extra>")
         # Create the figure object
-        fig = Figure()
+        fig = Figure(data=[trace])
         fig.update_layout(
             template=None,
             margin=dict(l=0, r=0, b=0, t=0, pad=4),
         )
         fig.update_xaxes(
             showgrid=False,
-            range=(0, slice_size[0]),
+            # range=(0, slice_size[0]),
             showticklabels=False,
             zeroline=False,
         )
         fig.update_yaxes(
             showgrid=False,
             scaleanchor="x",
-            range=(slice_size[1], 0),  # todo: allow flipping x or y
+            # range=(slice_size[1], 0),  # todo: allow flipping x or y
             showticklabels=False,
             zeroline=False,
-        )
-        # Add an empty layout image that we can populate from JS.
-        fig.add_layout_image(
-            dict(
-                source="",
-                xref="x",
-                yref="y",
-                x=0,
-                y=0,
-                sizex=slice_size[0],
-                sizey=slice_size[1],
-                sizing="contain",
-                layer="below",
-            )
         )
         # Wrap the figure in a graph
         # todo: or should the user provide this?
@@ -180,13 +172,15 @@ class DashVolumeSlicer:
                 // return window.dash_clientside.no_update;
                 data = lowres[index];
             }
-            if (data == ori_figure.layout.images[0].source) {
+            //if (data == ori_figure.layout.images[0].source) {
+            if (data == ori_figure.data[0].source) {
                 return window.dash_clientside.no_update;
             }
             // Otherwise, perform update
             console.log("updating figure");
             let figure = {...ori_figure};
-            figure.layout.images[0].source = data;
+            //figure.layout.images[0].source = data;
+            figure.data[0].source = data;
             return figure;
         }
         """.replace(
