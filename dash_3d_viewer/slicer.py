@@ -166,17 +166,14 @@ class DashVolumeSlicer:
             //slice_cache[new_index] = undefined;  // todo: disabled cache for now!
             // Maybe we do not need an update
             if (!data) {
-                // return window.dash_clientside.no_update;
                 data = lowres[index];
             }
-            //if (data == ori_figure.layout.images[0].source) {
             if (data == ori_figure.data[0].source) {
                 return window.dash_clientside.no_update;
             }
             // Otherwise, perform update
             console.log("updating figure");
             let figure = {...ori_figure};
-            //figure.layout.images[0].source = data;
             figure.data[0].source = data;
             return figure;
         }
