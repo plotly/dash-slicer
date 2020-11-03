@@ -30,7 +30,7 @@ fig_mesh.add_trace(go.Mesh3d(x=z, y=y, z=x, opacity=0.2, i=k, j=j, k=i))
 app.layout = html.Div(
     style={
         "display": "grid",
-        "grid-template-columns": "40% 40%",
+        "gridTemplateColumns": "40% 40%",
     },
     children=[
         html.Div(

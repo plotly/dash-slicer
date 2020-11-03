@@ -17,7 +17,7 @@ slicer2 = DashVolumeSlicer(app, vol, axis=2)
 app.layout = html.Div(
     style={
         "display": "grid",
-        "grid-template-columns": "40% 40%",
+        "gridTemplateColumns": "40% 40%",
     },
     children=[
         html.Div(
