@@ -7,9 +7,6 @@ from dash_core_components import Graph, Slider, Store
 from .utils import gen_random_id, img_array_to_uri
 
 
-empty_img_str = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGNgAAAAAgABSK+kcQAAAABJRU5ErkJggg=="
-
-
 class DashVolumeSlicer:
     """A slicer to show 3D image data in Dash."""
 
@@ -32,9 +29,9 @@ class DashVolumeSlicer:
         self._id = id
 
         # Get the slice size (width, height), and max index
-        arr_shape = list(volume.shape)
-        arr_shape.pop(self._axis)
-        slice_size = list(reversed(arr_shape))
+        # arr_shape = list(volume.shape)
+        # arr_shape.pop(self._axis)
+        # slice_size = list(reversed(arr_shape))
         self._max_index = self._volume.shape[self._axis] - 1
 
         # Prep low-res slices
@@ -45,7 +42,7 @@ class DashVolumeSlicer:
 
         # Create a placeholder trace
         # todo: can add "%{z[0]}", but that would be the scaled value ...
-        trace = Image(source=empty_img_str, hovertemplate="(%{x}, %{y})<extra></extra>")
+        trace = Image(source="", hovertemplate="(%{x}, %{y})<extra></extra>")
         # Create the figure object
         fig = Figure(data=[trace])
         fig.update_layout(
@@ -53,15 +50,15 @@ class DashVolumeSlicer:
             margin=dict(l=0, r=0, b=0, t=0, pad=4),
         )
         fig.update_xaxes(
-            showgrid=False,
             # range=(0, slice_size[0]),
+            showgrid=False,
             showticklabels=False,
             zeroline=False,
         )
         fig.update_yaxes(
+            # range=(slice_size[1], 0),  # todo: allow flipping x or y
             showgrid=False,
             scaleanchor="x",
-            # range=(slice_size[1], 0),  # todo: allow flipping x or y
             showticklabels=False,
             zeroline=False,
         )
