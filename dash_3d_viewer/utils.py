@@ -2,6 +2,7 @@ import io
 import random
 import base64
 
+import numpy as np
 import PIL.Image
 import skimage
 
@@ -23,3 +24,11 @@ def img_array_to_uri(img_array, new_size=None):
     img_pil.save(f, format="PNG")
     base64_str = base64.b64encode(f.getvalue()).decode()
     return "data:image/png;base64," + base64_str
+
+
+def get_thumbnail_size_from_shape(shape, base_size):
+    base_size = int(base_size)
+    img_array = np.zeros(shape, np.uint8)
+    img_pil = PIL.Image.fromarray(img_array)
+    img_pil.thumbnail((base_size, base_size))
+    return img_pil.size

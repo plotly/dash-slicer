@@ -11,8 +11,8 @@ import imageio
 app = dash.Dash(__name__)
 
 vol = imageio.volread("imageio:stent.npz")
-slicer1 = DashVolumeSlicer(app, vol, axis=1, id="slicer1")
-slicer2 = DashVolumeSlicer(app, vol, axis=2, id="slicer2")
+slicer1 = DashVolumeSlicer(app, vol, axis=1)
+slicer2 = DashVolumeSlicer(app, vol, axis=2)
 
 app.layout = html.Div(
     style={
