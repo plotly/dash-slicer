@@ -14,9 +14,9 @@ class DashVolumeSlicer:
       app (dash.Dash): the Dash application instance.
       volume (ndarray): the 3D numpy array to slice through.
       axis (int): the dimension to slice in. Default 0.
-      volume_id (str): the id to use for the volume. By default this is a
-        hash of ``id(volume)``. Slicers that have the same volume-id show
-        each-other's positions with line indicators.
+      scene_id (str): the scene that this slicer is part of. Slicers
+        that have the same scene-id show each-other's positions with
+        line indicators. By default this is a hash of ``id(volume)``.
 
     This is a placeholder object, not a Dash component. The components
     that make up the slicer can be accessed as attributes:
@@ -29,16 +29,16 @@ class DashVolumeSlicer:
     Each component is given a dict-id with the following keys:
 
     * "context": a unique string id for this slicer instance.
-    * "volume": the volume_id.
+    * "scene": the scene_id.
     * "axis": the int axis.
-    * "name": the name of the component.
+    * "name": the name of the (sub) component.
 
     TODO: iron out these details, list the stores that are public
     """
 
     _global_slicer_counter = 0
 
-    def __init__(self, app, volume, axis=0, volume_id=None):
+    def __init__(self, app, volume, axis=0, scene_id=None):
         if not isinstance(app, Dash):
             raise TypeError("Expect first arg to be a Dash app.")
         self._app = app
@@ -51,14 +51,14 @@ class DashVolumeSlicer:
             raise ValueError("The given axis must be 0, 1, or 2.")
         self._axis = int(axis)
         # Check and store id
-        if volume_id is None:
-            volume_id = hex(id(volume))
-        elif not isinstance(volume_id, str):
-            raise TypeError("volume_id must be a string")
-        self.volume_id = volume_id
+        if scene_id is None:
+            scene_id = "volume_" + hex(id(volume))[2:]
+        elif not isinstance(scene_id, str):
+            raise TypeError("scene_id must be a string")
+        self.scene_id = scene_id
         # Get unique id scoped to this slicer object
         DashVolumeSlicer._global_slicer_counter += 1
-        self.context_id = "slicer" + str(DashVolumeSlicer._global_slicer_counter)
+        self.context_id = "slicer_" + str(DashVolumeSlicer._global_slicer_counter)
 
         # Get the slice size (width, height), and max index
         arr_shape = list(volume.shape)
@@ -137,7 +137,7 @@ class DashVolumeSlicer:
         # todo: is there a penalty for using a dict-id vs a string-id?
         return {
             "context": self.context_id,
-            "volume-id": self.volume_id,
+            "scene": self.scene_id,
             "axis": self._axis,
             "name": name,
         }
@@ -217,7 +217,6 @@ class DashVolumeSlicer:
             let x0 = 0, y0 = 0, dx = 1, dy = 1;
             //slice_cache[new_index] = undefined;  // todo: disabled cache for now!
             // Maybe we do not need an update
-            console.log(slice_size)
             if (!data) {
                 data = lowres[index];
                 // Scale the image to take the exact same space as the full-res
@@ -288,14 +287,14 @@ class DashVolumeSlicer:
                 y: y,
                 hoverinfo: 'skip',
                 version: version
-            }
+            };
         }
         """,
             Output(self._subid("_indicators"), "data"),
             [
                 Input(
                     {
-                        "volume-id": self.volume_id,
+                        "scene": self.scene_id,
                         "context": ALL,
                         "name": "index",
                         "axis": axis,
