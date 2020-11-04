@@ -76,6 +76,7 @@ class DashVolumeSlicer:
             max=self._max_index,
             step=1,
             value=self._max_index // 2,
+            tooltip={"always_visible": False, "placement": "left"},
             updatemode="drag",
         )
         # Create the stores that we need (these must be present in the layout)
