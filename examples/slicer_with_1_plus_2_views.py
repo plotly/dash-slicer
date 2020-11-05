@@ -25,13 +25,17 @@ vol1 = imageio.volread("imageio:stent.npz")
 
 vol2 = vol1[::3, ::2, :]
 spacing = 3, 2, 1
-origin = 110, 120, 140
+ori = 110, 120, 140
 
 
-slicer1 = DashVolumeSlicer(app, vol1, axis=1, origin=origin, scene_id="myscene")
-slicer2 = DashVolumeSlicer(app, vol1, axis=0, origin=origin, scene_id="myscene")
+slicer1 = DashVolumeSlicer(
+    app, vol1, axis=1, origin=ori, reverse_y=False, scene_id="scene1"
+)
+slicer2 = DashVolumeSlicer(
+    app, vol1, axis=0, origin=ori, reverse_y=False, scene_id="scene1"
+)
 slicer3 = DashVolumeSlicer(
-    app, vol2, axis=0, origin=origin, spacing=spacing, scene_id="myscene"
+    app, vol2, axis=0, origin=ori, spacing=spacing, reverse_y=False, scene_id="scene1"
 )
 
 app.layout = html.Div(

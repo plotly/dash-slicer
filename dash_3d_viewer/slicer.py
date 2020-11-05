@@ -12,13 +12,17 @@ class DashVolumeSlicer:
 
     Parameters:
       app (dash.Dash): the Dash application instance.
-      volume (ndarray): the 3D numpy array to slice through.
-        The dimensions are assumed to be in zyx order.
-      spacing (tuple of floats): The voxel size for each dimension (zyx).
+      volume (ndarray): the 3D numpy array to slice through. The dimensions
+        are assumed to be in zyx order. If this is not the case, you can
+        use ``np.swapaxes`` to make it so.
+      spacing (tuple of floats): The distance between voxels for each dimension (zyx).
         The spacing and origin are applied to make the slice drawn in
         "scene space" rather than "voxel space".
       origin (tuple of floats): The offset for each dimension (zyx).
       axis (int): the dimension to slice in. Default 0.
+      reverse_y (bool): Whether to reverse the y-axis, so that the origin of
+        the slice is in the top-left, rather than bottom-left. Default True.
+        (This sets the figure's yaxes ``autorange`` to either "reversed" or True.)
       scene_id (str): the scene that this slicer is part of. Slicers
         that have the same scene-id show each-other's positions with
         line indicators. By default this is a hash of ``id(volume)``.
@@ -44,7 +48,15 @@ class DashVolumeSlicer:
     _global_slicer_counter = 0
 
     def __init__(
-        self, app, volume, *, spacing=None, origin=None, axis=0, scene_id=None
+        self,
+        app,
+        volume,
+        *,
+        spacing=None,
+        origin=None,
+        axis=0,
+        reverse_y=True,
+        scene_id=None
     ):
         # todo: also implement xyz dim order?
         if not isinstance(app, Dash):
@@ -115,6 +127,7 @@ class DashVolumeSlicer:
             scaleanchor="x",
             showticklabels=False,
             zeroline=False,
+            autorange="reversed" if reverse_y else True,
         )
         # Wrap the figure in a graph
         # todo: or should the user provide this?
