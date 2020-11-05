@@ -3,10 +3,9 @@ import re
 from setuptools import find_packages, setup
 
 
-NAME = "dash_3d_viewer"
-SUMMARY = (
-    "A library to make it easy to build slice-views on 3D image data in Dash apps."
-)
+NAME = "dash-slicer"
+SUMMARY = "A volume slicer for Dash"
+
 
 with open(f"{NAME}/__init__.py") as fh:
     VERSION = re.search(r"__version__ = \"(.*?)\"", fh.read()).group(1)

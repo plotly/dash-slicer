@@ -6,14 +6,14 @@ components. The slicer's components are used as both inputs and outputs.
 import dash
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
-from dash_3d_viewer import DashVolumeSlicer
+from dash_slicer import VolumeSlicer
 import imageio
 
 
 app = dash.Dash(__name__)
 
 vol = imageio.volread("imageio:stent.npz")
-slicer = DashVolumeSlicer(app, vol)
+slicer = VolumeSlicer(app, vol)
 
 # We can access the components, and modify them
 slicer.slider.value = 0

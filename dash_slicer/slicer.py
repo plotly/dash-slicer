@@ -7,7 +7,7 @@ from dash_core_components import Graph, Slider, Store
 from .utils import img_array_to_uri, get_thumbnail_size_from_shape, shape3d_to_size2d
 
 
-class DashVolumeSlicer:
+class VolumeSlicer:
     """A slicer to show 3D image data in Dash.
 
     Parameters:
@@ -81,8 +81,8 @@ class DashVolumeSlicer:
             raise TypeError("scene_id must be a string")
         self.scene_id = scene_id
         # Get unique id scoped to this slicer object
-        DashVolumeSlicer._global_slicer_counter += 1
-        self.context_id = "slicer_" + str(DashVolumeSlicer._global_slicer_counter)
+        VolumeSlicer._global_slicer_counter += 1
+        self.context_id = "slicer_" + str(VolumeSlicer._global_slicer_counter)
 
         # Prepare slice info
         info = {

@@ -15,7 +15,7 @@ Note how the indicators represent the actual position in "scene coordinates".
 
 import dash
 import dash_html_components as html
-from dash_3d_viewer import DashVolumeSlicer
+from dash_slicer import VolumeSlicer
 import imageio
 
 
@@ -28,13 +28,13 @@ spacing = 3, 2, 1
 ori = 110, 120, 140
 
 
-slicer1 = DashVolumeSlicer(
+slicer1 = VolumeSlicer(
     app, vol1, axis=1, origin=ori, reverse_y=False, scene_id="scene1"
 )
-slicer2 = DashVolumeSlicer(
+slicer2 = VolumeSlicer(
     app, vol1, axis=0, origin=ori, reverse_y=False, scene_id="scene1"
 )
-slicer3 = DashVolumeSlicer(
+slicer3 = VolumeSlicer(
     app, vol2, axis=0, origin=ori, spacing=spacing, reverse_y=False, scene_id="scene1"
 )
 

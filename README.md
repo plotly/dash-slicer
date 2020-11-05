@@ -1,6 +1,7 @@
-# dash-3d-viewer
+# dash_slicer
 
-A tool to make it easy to build slice-views on 3D image data, in Dash apps.
+A volume slicer for Dash
+
 
 The API is currently a WIP.
 
@@ -10,9 +11,23 @@ The API is currently a WIP.
 Eventually, this would be pip-installable. For now, use the developer workflow.
 
 
-## Usage
+## Usage example
 
-TODO, see the examples.
+```py
+import dash
+import dash_html_components as html
+from dash_slicer import VolumeSlicer
+import imageio
+
+app = dash.Dash(__name__)
+
+vol = imageio.volread("imageio:stent.npz")
+slicer = VolumeSlicer(app, vol)
+app.layout = html.Div([slicer.graph, slicer.slider, *slicer.stores])
+
+if __name__ == "__main__":
+    app.run_server()
+```
 
 
 ## License
