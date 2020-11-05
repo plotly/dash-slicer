@@ -15,9 +15,9 @@ app = dash.Dash(__name__)
 
 # Read volumes and create slicer objects
 vol = imageio.volread("imageio:stent.npz")
-slicer1 = DashVolumeSlicer(app, vol, axis=0)
-slicer2 = DashVolumeSlicer(app, vol, axis=1)
-slicer3 = DashVolumeSlicer(app, vol, axis=2)
+slicer1 = DashVolumeSlicer(app, vol, reverse_y=False, axis=0)
+slicer2 = DashVolumeSlicer(app, vol, reverse_y=False, axis=1)
+slicer3 = DashVolumeSlicer(app, vol, reverse_y=False, axis=2)
 
 # Calculate isosurface and create a figure with a mesh object
 verts, faces, _, _ = marching_cubes(vol, 300, step_size=2)
@@ -30,7 +30,7 @@ fig_mesh.add_trace(go.Mesh3d(x=z, y=y, z=x, opacity=0.2, i=k, j=j, k=i))
 app.layout = html.Div(
     style={
         "display": "grid",
-        "grid-template-columns": "40% 40%",
+        "gridTemplateColumns": "40% 40%",
     },
     children=[
         html.Div(

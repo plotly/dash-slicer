@@ -32,3 +32,14 @@ def get_thumbnail_size_from_shape(shape, base_size):
     img_pil = PIL.Image.fromarray(img_array)
     img_pil.thumbnail((base_size, base_size))
     return img_pil.size
+
+
+def shape3d_to_size2d(shape, axis):
+    """Turn a 3d shape (z, y, x) into a local (x', y', z'),
+    where z' represents the dimension indicated by axis.
+    """
+    shape = list(shape)
+    axis_value = shape.pop(axis)
+    size = list(reversed(shape))
+    size.append(axis_value)
+    return tuple(size)
