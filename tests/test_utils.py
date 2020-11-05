@@ -1,4 +1,4 @@
-from dash_3d_viewer.utils import shape3d_to_size2d
+from dash_slicer.utils import shape3d_to_size2d
 
 from pytest import raises
 
