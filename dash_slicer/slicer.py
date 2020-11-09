@@ -36,15 +36,9 @@ class VolumeSlicer:
     * ``stores``: a list of dcc.Store objects. Some are "public" values, others
       used internally. Make sure to put them somewhere in the layout.
 
-    Each component is given a dict-id with the following keys:
-
-    * "context": a unique string id for this slicer instance.
-    * "scene": the scene_id.
-    * "axis": the int axis.
-    * "name": the name of the (sub) component.
-
-    TODO: iron out these details, list the stores that are public
     """
+
+    # Note(AK): we could make some stores public, but let's do this only when actual use-cases arise?
 
     _global_slicer_counter = 0
 
@@ -82,7 +76,7 @@ class VolumeSlicer:
         self.scene_id = scene_id
         # Get unique id scoped to this slicer object
         VolumeSlicer._global_slicer_counter += 1
-        self.context_id = "slicer_" + str(VolumeSlicer._global_slicer_counter)
+        self.context_id = "slicer" + str(VolumeSlicer._global_slicer_counter)
 
         # Prepare slice info
         info = {
@@ -145,15 +139,15 @@ class VolumeSlicer:
         )
         # Create the stores that we need (these must be present in the layout)
         self._info = Store(id=self._subid("info"), data=info)
-        self._position = Store(id=self._subid("position"), data=0)
-        self._requested_slice = Store(id=self._subid("_requested-slice-index"), data=0)
-        self._request_data = Store(id=self._subid("_slice-data"), data="")
-        self._lowres_data = Store(id=self._subid("_slice-data-lowres"), data=thumbnails)
-        self._indicators = Store(id=self._subid("_indicators"), data=[])
+        self._position = Store(id=self._subid("position", True), data=0)
+        self._requested_index = Store(id=self._subid("req-index"), data=0)
+        self._request_data = Store(id=self._subid("req-data"), data="")
+        self._lowres_data = Store(id=self._subid("lowres-data"), data=thumbnails)
+        self._indicators = Store(id=self._subid("indicators"), data=[])
         self.stores = [
             self._info,
             self._position,
-            self._requested_slice,
+            self._requested_index,
             self._request_data,
             self._lowres_data,
             self._indicators,
@@ -162,16 +156,20 @@ class VolumeSlicer:
         self._create_server_callbacks()
         self._create_client_callbacks()
 
-    def _subid(self, name):
+    def _subid(self, name, use_dict=False):
         """Given a subid, get the full id including the slicer's prefix."""
-        # return self.context_id + "-" + name
-        # todo: is there a penalty for using a dict-id vs a string-id?
-        return {
-            "context": self.context_id,
-            "scene": self.scene_id,
-            "axis": self._axis,
-            "name": name,
-        }
+        if use_dict:
+            # A dict-id is nice to query objects with pattern matching callbacks,
+            # and we use that to show the position of other sliders. But it makes
+            # the id's very long, which is annoying e.g. in the callback graph.
+            return {
+                "context": self.context_id,
+                "scene": self.scene_id,
+                "axis": self._axis,
+                "name": name,
+            }
+        else:
+            return self.context_id + "-" + name
 
     def _slice(self, index):
         """Sample a slice from the volume."""
@@ -186,7 +184,7 @@ class VolumeSlicer:
 
         @app.callback(
             Output(self._request_data.id, "data"),
-            [Input(self._requested_slice.id, "data")],
+            [Input(self._requested_index.id, "data")],
         )
         def upload_requested_slice(slice_index):
             slice = self._slice(slice_index)
@@ -222,18 +220,9 @@ class VolumeSlicer:
         """.replace(
                 "{{ID}}", self.context_id
             ),
-            Output(self._requested_slice.id, "data"),
+            Output(self._requested_index.id, "data"),
             [Input(self.slider.id, "value")],
         )
-
-        # app.clientside_callback("""
-        # function update_slider_pos(index) {
-        #     return index;
-        # }
-        # """,
-        #     [Output("index", "data")],
-        #     [State("slider", "value")],
-        # )
 
         app.clientside_callback(
             """
