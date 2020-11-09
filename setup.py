@@ -7,7 +7,7 @@ NAME = "dash-slicer"
 SUMMARY = "A volume slicer for Dash"
 
 
-with open(f"{NAME}/__init__.py") as fh:
+with open(f"{NAME.replace('-', '_')}/__init__.py") as fh:
     VERSION = re.search(r"__version__ = \"(.*?)\"", fh.read()).group(1)
 
 
