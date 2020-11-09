@@ -25,14 +25,15 @@ class VolumeSlicer:
         (This sets the figure's yaxes ``autorange`` to either "reversed" or True.)
       scene_id (str): the scene that this slicer is part of. Slicers
         that have the same scene-id show each-other's positions with
-        line indicators. By default this is a hash of ``id(volume)``.
+        line indicators. By default this is derived from ``id(volume)``.
 
     This is a placeholder object, not a Dash component. The components
     that make up the slicer can be accessed as attributes:
 
-    * ``graph``: the Graph object.
-    * ``slider``: the Slider object.
-    * ``stores``: a list of Store objects. Some are "public" values, others
+    * ``graph``: the dcc.Graph object.
+    * ``graph.figure``: the Plotly figure object.
+    * ``slider``: the dcc.Slider object, its value represents the slice index.
+    * ``stores``: a list of dcc.Store objects. Some are "public" values, others
       used internally. Make sure to put them somewhere in the layout.
 
     Each component is given a dict-id with the following keys:
