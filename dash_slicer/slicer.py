@@ -58,7 +58,6 @@ class VolumeSlicer:
         reverse_y=True,
         scene_id=None
     ):
-        # todo: also implement xyz dim order?
         if not isinstance(app, Dash):
             raise TypeError("Expect first arg to be a Dash app.")
         self._app = app
@@ -109,28 +108,25 @@ class VolumeSlicer:
             source="", dx=1, dy=1, hovertemplate="(%{x}, %{y})<extra></extra>"
         )
         scatter_trace = Scatter(x=[], y=[])  # placeholder
-        # Create the figure object
+        # Create the figure object - can be accessed by user via slicer.graph.figure
         self._fig = fig = Figure(data=[image_trace, scatter_trace])
         fig.update_layout(
             template=None,
             margin=dict(l=0, r=0, b=0, t=0, pad=4),
         )
         fig.update_xaxes(
-            # range=(0, slice_size[0]),
             showgrid=False,
             showticklabels=False,
             zeroline=False,
         )
         fig.update_yaxes(
-            # range=(slice_size[1], 0),  # todo: allow flipping x or y
             showgrid=False,
             scaleanchor="x",
             showticklabels=False,
             zeroline=False,
             autorange="reversed" if reverse_y else True,
         )
-        # Wrap the figure in a graph
-        # todo: or should the user provide this?
+        # Create the graph (graph is a Dash component wrapping a Plotly figure)
         self.graph = Graph(
             id=self._subid("graph"),
             figure=fig,
@@ -149,7 +145,6 @@ class VolumeSlicer:
         # Create the stores that we need (these must be present in the layout)
         self.stores = [
             Store(id=self._subid("info"), data=info),
-            Store(id=self._subid("index"), data=volume.shape[self._axis] // 2),
             Store(id=self._subid("position"), data=0),
             Store(id=self._subid("_requested-slice-index"), data=0),
             Store(id=self._subid("_slice-data"), data=""),
@@ -196,22 +191,12 @@ class VolumeSlicer:
 
         app.clientside_callback(
             """
-        function handle_slider_move(index) {
-            return index;
-        }
-        """,
-            Output(self._subid("index"), "data"),
-            [Input(self._subid("slider"), "value")],
-        )
-
-        app.clientside_callback(
-            """
         function update_position(index, info) {
             return info.origin[2] + index * info.spacing[2];
         }
         """,
             Output(self._subid("position"), "data"),
-            [Input(self._subid("index"), "data")],
+            [Input(self._subid("slider"), "value")],
             [State(self._subid("info"), "data")],
         )
 
@@ -231,7 +216,7 @@ class VolumeSlicer:
                 "{{ID}}", self.context_id
             ),
             Output(self._subid("_requested-slice-index"), "data"),
-            [Input(self._subid("index"), "data")],
+            [Input(self._subid("slider"), "value")],
         )
 
         # app.clientside_callback("""
@@ -286,7 +271,7 @@ class VolumeSlicer:
             ),
             Output(self._subid("graph"), "figure"),
             [
-                Input(self._subid("index"), "data"),
+                Input(self._subid("slider"), "value"),
                 Input(self._subid("_slice-data"), "data"),
                 Input(self._subid("_indicators"), "data"),
             ],
