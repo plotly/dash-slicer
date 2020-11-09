@@ -144,13 +144,19 @@ class VolumeSlicer:
             updatemode="drag",
         )
         # Create the stores that we need (these must be present in the layout)
+        self._info = Store(id=self._subid("info"), data=info)
+        self._position = Store(id=self._subid("position"), data=0)
+        self._requested_slice = Store(id=self._subid("_requested-slice-index"), data=0)
+        self._request_data = Store(id=self._subid("_slice-data"), data="")
+        self._lowres_data = Store(id=self._subid("_slice-data-lowres"), data=thumbnails)
+        self._indicators = Store(id=self._subid("_indicators"), data=[])
         self.stores = [
-            Store(id=self._subid("info"), data=info),
-            Store(id=self._subid("position"), data=0),
-            Store(id=self._subid("_requested-slice-index"), data=0),
-            Store(id=self._subid("_slice-data"), data=""),
-            Store(id=self._subid("_slice-data-lowres"), data=thumbnails),
-            Store(id=self._subid("_indicators"), data=[]),
+            self._info,
+            self._position,
+            self._requested_slice,
+            self._request_data,
+            self._lowres_data,
+            self._indicators,
         ]
 
         self._create_server_callbacks()
@@ -179,8 +185,8 @@ class VolumeSlicer:
         app = self._app
 
         @app.callback(
-            Output(self._subid("_slice-data"), "data"),
-            [Input(self._subid("_requested-slice-index"), "data")],
+            Output(self._request_data.id, "data"),
+            [Input(self._requested_slice.id, "data")],
         )
         def upload_requested_slice(slice_index):
             slice = self._slice(slice_index)
@@ -196,9 +202,9 @@ class VolumeSlicer:
             return info.origin[2] + index * info.spacing[2];
         }
         """,
-            Output(self._subid("position"), "data"),
-            [Input(self._subid("slider"), "value")],
-            [State(self._subid("info"), "data")],
+            Output(self._position.id, "data"),
+            [Input(self.slider.id, "value")],
+            [State(self._info.id, "data")],
         )
 
         app.clientside_callback(
@@ -216,8 +222,8 @@ class VolumeSlicer:
         """.replace(
                 "{{ID}}", self.context_id
             ),
-            Output(self._subid("_requested-slice-index"), "data"),
-            [Input(self._subid("slider"), "value")],
+            Output(self._requested_slice.id, "data"),
+            [Input(self.slider.id, "value")],
         )
 
         # app.clientside_callback("""
@@ -270,16 +276,16 @@ class VolumeSlicer:
         """.replace(
                 "{{ID}}", self.context_id
             ),
-            Output(self._subid("graph"), "figure"),
+            Output(self.graph.id, "figure"),
             [
-                Input(self._subid("slider"), "value"),
-                Input(self._subid("_slice-data"), "data"),
-                Input(self._subid("_indicators"), "data"),
+                Input(self.slider.id, "value"),
+                Input(self._request_data.id, "data"),
+                Input(self._indicators.id, "data"),
             ],
             [
-                State(self._subid("graph"), "figure"),
-                State(self._subid("_slice-data-lowres"), "data"),
-                State(self._subid("info"), "data"),
+                State(self.graph.id, "figure"),
+                State(self._lowres_data.id, "data"),
+                State(self._info.id, "data"),
             ],
         )
 
@@ -320,7 +326,7 @@ class VolumeSlicer:
             };
         }
         """,
-            Output(self._subid("_indicators"), "data"),
+            Output(self._indicators.id, "data"),
             [
                 Input(
                     {
@@ -334,7 +340,7 @@ class VolumeSlicer:
                 for axis in axii
             ],
             [
-                State(self._subid("info"), "data"),
-                State(self._subid("_indicators"), "data"),
+                State(self._info.id, "data"),
+                State(self._indicators.id, "data"),
             ],
         )
