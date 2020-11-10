@@ -3,12 +3,24 @@ import base64
 
 import numpy as np
 import PIL.Image
-import skimage
+
+
+def img_as_ubyte(img):
+    """Quick-n-dirty conversion function.
+    We'll have explicit contrast limits eventually.
+    """
+    if img.dtype == np.uint8:
+        return img
+    else:
+        img = img.astype(np.float32)
+        mi, ma = img.min(), img.max()
+        img = (img - mi) * (255 / (ma - mi)) + 0.5
+        return img.astype(np.uint8)
 
 
 def img_array_to_uri(img_array, new_size=None):
     """Convert the given image (numpy array) into a base64-encoded PNG."""
-    img_array = skimage.util.img_as_ubyte(img_array)
+    img_array = img_as_ubyte(img_array)
     # todo: leverage this Plotly util once it becomes part of the public API (also drops the Pillow dependency)
     # from plotly.express._imshow import _array_to_b64str
     # return _array_to_b64str(img_array)

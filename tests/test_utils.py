@@ -1,7 +1,29 @@
-from dash_slicer.utils import img_array_to_uri, get_thumbnail_size, shape3d_to_size2d
+from dash_slicer.utils import (
+    img_as_ubyte,
+    img_array_to_uri,
+    get_thumbnail_size,
+    shape3d_to_size2d,
+)
 
 import numpy as np
 from pytest import raises
+
+
+def test_img_as_ubyte():
+
+    im = np.zeros((100, 100), np.float32)
+    im[0, 0] = 100
+
+    # Anything but uint8 is stretched to min-max
+    im2 = img_as_ubyte(im)
+    assert im2.dtype == np.uint8
+    assert im2.min() == 0 and im2.max() == 255
+
+    # Uint- stays where it is
+    im2[0, 0] = 100
+    im3 = img_as_ubyte(im2)
+    assert im3.dtype == np.uint8
+    assert im3.min() == 0 and im3.max() == 100
 
 
 def test_img_array_to_uri():
