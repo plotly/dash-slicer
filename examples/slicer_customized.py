@@ -1,6 +1,6 @@
 """
-A small example showing how to write callbacks involving the slicer's
-components. The slicer's components are used as both inputs and outputs.
+An example showing how to customize the slicer and write callbacks
+involving the slicer's components.
 """
 
 import dash
@@ -15,10 +15,20 @@ app = dash.Dash(__name__)
 vol = imageio.volread("imageio:stent.npz")
 slicer = VolumeSlicer(app, vol)
 
+
 # We can access the components, and modify them
 slicer.slider.value = 0
 
-# Define the layour, including extra buttons
+# The graph can be configured
+slicer.graph.config.update({"modeBarButtonsToAdd": ["drawclosedpath", "eraseshape"]})
+
+# The plotly figure can be accessed too
+slicer.graph.figure.update_layout(margin=dict(l=0, r=0, b=30, t=0, pad=4))
+slicer.graph.figure.update_xaxes(showgrid=True, showticklabels=True)
+slicer.graph.figure.update_yaxes(showgrid=True, showticklabels=True)
+
+
+# Define the layout, including extra buttons
 app.layout = html.Div(
     [
         slicer.graph,
