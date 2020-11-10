@@ -3,4 +3,3 @@ numpy
 plotly
 dash
 dash_core_components
-scikit-image
