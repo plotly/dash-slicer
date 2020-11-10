@@ -44,4 +44,4 @@ def test_scene_id_and_context_id():
     assert s1.scene_id == s2.scene_id and s1.scene_id == s3.scene_id
 
     # Context id's must be unique
-    assert s1.context_id != s2.context_id and s1.context_id != s3.context_id
+    assert s1._context_id != s2._context_id and s1._context_id != s3._context_id

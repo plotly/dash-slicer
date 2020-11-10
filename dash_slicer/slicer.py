@@ -38,8 +38,6 @@ class VolumeSlicer:
 
     """
 
-    # Note(AK): we could make some stores public, but let's do this only when actual use-cases arise?
-
     _global_slicer_counter = 0
 
     def __init__(
@@ -53,9 +51,11 @@ class VolumeSlicer:
         reverse_y=True,
         scene_id=None
     ):
+
         if not isinstance(app, Dash):
             raise TypeError("Expect first arg to be a Dash app.")
         self._app = app
+
         # Check and store volume
         if not (isinstance(volume, np.ndarray) and volume.ndim == 3):
             raise TypeError("Expected volume to be a 3D numpy array")
@@ -64,28 +64,94 @@ class VolumeSlicer:
         spacing = float(spacing[0]), float(spacing[1]), float(spacing[2])
         origin = (0, 0, 0) if origin is None else origin
         origin = float(origin[0]), float(origin[1]), float(origin[2])
+
         # Check and store axis
         if not (isinstance(axis, int) and 0 <= axis <= 2):
             raise ValueError("The given axis must be 0, 1, or 2.")
         self._axis = int(axis)
-        # Check and store id
+        self._reverse_y = bool(reverse_y)
+
+        # Check and store scene id
         if scene_id is None:
             scene_id = "volume_" + hex(id(volume))[2:]
         elif not isinstance(scene_id, str):
             raise TypeError("scene_id must be a string")
-        self.scene_id = scene_id
+        self._scene_id = scene_id
+
         # Get unique id scoped to this slicer object
         VolumeSlicer._global_slicer_counter += 1
-        self.context_id = "slicer" + str(VolumeSlicer._global_slicer_counter)
+        self._context_id = "slicer" + str(VolumeSlicer._global_slicer_counter)
 
-        # Prepare slice info
-        info = {
+        # Prepare slice info that we use at the client side
+        self._slice_info = {
             "shape": tuple(volume.shape),
             "axis": self._axis,
             "size": shape3d_to_size2d(volume.shape, axis),
             "origin": shape3d_to_size2d(origin, axis),
             "spacing": shape3d_to_size2d(spacing, axis),
         }
+
+        # Build the slicer
+        self._create_dash_components()
+        self._create_server_callbacks()
+        self._create_client_callbacks()
+
+    # Note(AK): we could make some stores public, but let's do this only when actual use-cases arise?
+
+    @property
+    def scene_id(self):
+        """The id of the "virtual scene" for this slicer. Slicers that have
+        the same scene_id show each-other's positions.
+        """
+        return self._scene_id
+
+    @property
+    def axis(self):
+        """The axis at which the slicer is slicing."""
+        return self._axis
+
+    @property
+    def graph(self):
+        """The dcc.Graph for this slicer."""
+        return self._graph
+
+    @property
+    def slider(self):
+        """The dcc.Slider to change the index for this slicer."""
+        return self._slider
+
+    @property
+    def stores(self):
+        """A list of dcc.Stores that the slicer needs to work. These must
+        be added to the app layout.
+        """
+        return self._stores
+
+    def _subid(self, name, use_dict=False):
+        """Given a subid, get the full id including the slicer's prefix."""
+        if use_dict:
+            # A dict-id is nice to query objects with pattern matching callbacks,
+            # and we use that to show the position of other sliders. But it makes
+            # the id's very long, which is annoying e.g. in the callback graph.
+            return {
+                "context": self._context_id,
+                "scene": self._scene_id,
+                "axis": self._axis,
+                "name": name,
+            }
+        else:
+            return self._context_id + "-" + name
+
+    def _slice(self, index):
+        """Sample a slice from the volume."""
+        indices = [slice(None), slice(None), slice(None)]
+        indices[self._axis] = index
+        im = self._volume[tuple(indices)]
+        return (im.astype(np.float32) * (255 / im.max())).astype(np.uint8)
+
+    def _create_dash_components(self):
+        """Create the graph, slider, figure, etc."""
+        info = self._slice_info
 
         # Prep low-res slices
         thumbnail_size = get_thumbnail_size(info["size"][:2], (32, 32))
@@ -101,6 +167,7 @@ class VolumeSlicer:
             source="", dx=1, dy=1, hovertemplate="(%{x}, %{y})<extra></extra>"
         )
         scatter_trace = Scatter(x=[], y=[])  # placeholder
+
         # Create the figure object - can be accessed by user via slicer.graph.figure
         self._fig = fig = Figure(data=[image_trace, scatter_trace])
         fig.update_layout(
@@ -117,16 +184,18 @@ class VolumeSlicer:
             scaleanchor="x",
             showticklabels=False,
             zeroline=False,
-            autorange="reversed" if reverse_y else True,
+            autorange="reversed" if self._reverse_y else True,
         )
+
         # Create the graph (graph is a Dash component wrapping a Plotly figure)
-        self.graph = Graph(
+        self._graph = Graph(
             id=self._subid("graph"),
             figure=fig,
             config={"scrollZoom": True},
         )
+
         # Create a slider object that the user can put in the layout (or not)
-        self.slider = Slider(
+        self._slider = Slider(
             id=self._subid("slider"),
             min=0,
             max=info["size"][2] - 1,
@@ -135,6 +204,7 @@ class VolumeSlicer:
             tooltip={"always_visible": False, "placement": "left"},
             updatemode="drag",
         )
+
         # Create the stores that we need (these must be present in the layout)
         self._info = Store(id=self._subid("info"), data=info)
         self._position = Store(id=self._subid("position", True), data=0)
@@ -142,7 +212,7 @@ class VolumeSlicer:
         self._request_data = Store(id=self._subid("req-data"), data="")
         self._lowres_data = Store(id=self._subid("lowres-data"), data=thumbnails)
         self._indicators = Store(id=self._subid("indicators"), data=[])
-        self.stores = [
+        self._stores = [
             self._info,
             self._position,
             self._requested_index,
@@ -150,31 +220,6 @@ class VolumeSlicer:
             self._lowres_data,
             self._indicators,
         ]
-
-        self._create_server_callbacks()
-        self._create_client_callbacks()
-
-    def _subid(self, name, use_dict=False):
-        """Given a subid, get the full id including the slicer's prefix."""
-        if use_dict:
-            # A dict-id is nice to query objects with pattern matching callbacks,
-            # and we use that to show the position of other sliders. But it makes
-            # the id's very long, which is annoying e.g. in the callback graph.
-            return {
-                "context": self.context_id,
-                "scene": self.scene_id,
-                "axis": self._axis,
-                "name": name,
-            }
-        else:
-            return self.context_id + "-" + name
-
-    def _slice(self, index):
-        """Sample a slice from the volume."""
-        indices = [slice(None), slice(None), slice(None)]
-        indices[self._axis] = index
-        im = self._volume[tuple(indices)]
-        return (im.astype(np.float32) * (255 / im.max())).astype(np.uint8)
 
     def _create_server_callbacks(self):
         """Create the callbacks that run server-side."""
@@ -216,7 +261,7 @@ class VolumeSlicer:
             }
         }
         """.replace(
-                "{{ID}}", self.context_id
+                "{{ID}}", self._context_id
             ),
             Output(self._requested_index.id, "data"),
             [Input(self.slider.id, "value")],
@@ -261,7 +306,7 @@ class VolumeSlicer:
             return figure;
         }
         """.replace(
-                "{{ID}}", self.context_id
+                "{{ID}}", self._context_id
             ),
             Output(self.graph.id, "figure"),
             [
@@ -317,7 +362,7 @@ class VolumeSlicer:
             [
                 Input(
                     {
-                        "scene": self.scene_id,
+                        "scene": self._scene_id,
                         "context": ALL,
                         "name": "position",
                         "axis": axis,
