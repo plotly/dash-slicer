@@ -11,14 +11,8 @@ with open(f"{NAME.replace('-', '_')}/__init__.py") as fh:
     VERSION = re.search(r"__version__ = \"(.*?)\"", fh.read()).group(1)
 
 
-runtime_deps = [
-    "pillow",
-    "numpy",
-    "plotly",
-    "dash",
-    "dash_core_components",
-    "scikit-image",  # may not be needed eventually?
-]
+with open("requirements.txt") as fh:
+    runtime_deps = [x.strip() for x in fh.read().splitlines() if x.strip()]
 
 
 setup(
