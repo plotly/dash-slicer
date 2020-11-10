@@ -4,7 +4,7 @@ from dash import Dash
 from dash.dependencies import Input, Output, State, ALL
 from dash_core_components import Graph, Slider, Store
 
-from .utils import img_array_to_uri, get_thumbnail_size_from_shape, shape3d_to_size2d
+from .utils import img_array_to_uri, get_thumbnail_size, shape3d_to_size2d
 
 
 class VolumeSlicer:
@@ -88,9 +88,7 @@ class VolumeSlicer:
         }
 
         # Prep low-res slices
-        thumbnail_size = get_thumbnail_size_from_shape(
-            (info["size"][1], info["size"][0]), 32
-        )
+        thumbnail_size = get_thumbnail_size(info["size"][:2], (32, 32))
         thumbnails = [
             img_array_to_uri(self._slice(i), thumbnail_size)
             for i in range(info["size"][2])
