@@ -15,26 +15,28 @@ class VolumeSlicer:
       volume (ndarray): the 3D numpy array to slice through. The dimensions
         are assumed to be in zyx order. If this is not the case, you can
         use ``np.swapaxes`` to make it so.
-      spacing (tuple of floats): The distance between voxels for each dimension (zyx).
-        The spacing and origin are applied to make the slice drawn in
-        "scene space" rather than "voxel space".
+      spacing (tuple of floats): The distance between voxels for each
+        dimension (zyx).The spacing and origin are applied to make the slice
+        drawn in "scene space" rather than "voxel space".
       origin (tuple of floats): The offset for each dimension (zyx).
       axis (int): the dimension to slice in. Default 0.
       reverse_y (bool): Whether to reverse the y-axis, so that the origin of
         the slice is in the top-left, rather than bottom-left. Default True.
-        (This sets the figure's yaxes ``autorange`` to either "reversed" or True.)
+        (This sets the figure's yaxes ``autorange`` to "reversed" or True.)
       scene_id (str): the scene that this slicer is part of. Slicers
         that have the same scene-id show each-other's positions with
         line indicators. By default this is derived from ``id(volume)``.
 
     This is a placeholder object, not a Dash component. The components
-    that make up the slicer can be accessed as attributes:
+    that make up the slicer can be accessed as attributes. These must all
+    be present in the app layout:
 
-    * ``graph``: the dcc.Graph object.
-    * ``graph.figure``: the Plotly figure object.
-    * ``slider``: the dcc.Slider object, its value represents the slice index.
-    * ``stores``: a list of dcc.Store objects. Some are "public" values, others
-      used internally. Make sure to put them somewhere in the layout.
+    * ``graph``: the dcc.Graph object. Use ``graph.figure`` to access the
+      Plotly figure object.
+    * ``slider``: the dcc.Slider object, its value represents the slice
+      index. If you don't want to use the slider, wrap it in a div with
+      style ``display: none``.
+    * ``stores``: a list of dcc.Store objects.
 
     """
 
@@ -71,7 +73,7 @@ class VolumeSlicer:
         self._axis = int(axis)
         self._reverse_y = bool(reverse_y)
 
-        # Check and store scene id
+        # Check and store scene id, and generate
         if scene_id is None:
             scene_id = "volume_" + hex(id(volume))[2:]
         elif not isinstance(scene_id, str):
@@ -128,7 +130,7 @@ class VolumeSlicer:
         return self._stores
 
     def _subid(self, name, use_dict=False):
-        """Given a subid, get the full id including the slicer's prefix."""
+        """Given a name, get the full id including the context id prefix."""
         if use_dict:
             # A dict-id is nice to query objects with pattern matching callbacks,
             # and we use that to show the position of other sliders. But it makes
