@@ -15,6 +15,8 @@ class VolumeSlicer:
       volume (ndarray): the 3D numpy array to slice through. The dimensions
         are assumed to be in zyx order. If this is not the case, you can
         use ``np.swapaxes`` to make it so.
+      overlay (ndarray): a 3D numpy array of the same shape as volume, either
+        boolean or uint8, describing an overlay mask. Default None
       spacing (tuple of floats): The distance between voxels for each
         dimension (zyx).The spacing and origin are applied to make the slice
         drawn in "scene space" rather than "voxel space".
@@ -46,12 +48,13 @@ class VolumeSlicer:
         self,
         app,
         volume,
+        overlay=None,
         *,
         spacing=None,
         origin=None,
         axis=0,
         reverse_y=True,
-        scene_id=None
+        scene_id=None,
     ):
 
         if not isinstance(app, Dash):
@@ -66,6 +69,9 @@ class VolumeSlicer:
         spacing = float(spacing[0]), float(spacing[1]), float(spacing[2])
         origin = (0, 0, 0) if origin is None else origin
         origin = float(origin[0]), float(origin[1]), float(origin[2])
+
+        # Check and store overlay
+        self.set_overlay(overlay)
 
         # Check and store axis
         if not (isinstance(axis, int) and 0 <= axis <= 2):
@@ -129,6 +135,22 @@ class VolumeSlicer:
         """
         return self._stores
 
+    def set_overlay(self, overlay):
+        """Set the overlay data, a 3D numpy array of the same shape
+        as the volume. Can be None to disable the overlay.
+        """
+        if overlay is not None:
+            if overlay.dtype not in (np.bool, np.uint8):
+                raise ValueError(
+                    f"Overlay must have bool or uint8 dtype, not {overlay.dtype}."
+                )
+            if overlay.shape != self._volume.shape:
+                raise ValueError(
+                    f"Overlay must has shape {overlay.shape}, but expected {self._volume.shape}"
+                )
+        self._overlay = overlay
+        # todo: how to trigger an update of the figure in JS?
+
     def _subid(self, name, use_dict=False):
         """Given a name, get the full id including the context id prefix."""
         if use_dict:
@@ -151,6 +173,24 @@ class VolumeSlicer:
         im = self._volume[tuple(indices)]
         return (im.astype(np.float32) * (255 / im.max())).astype(np.uint8)
 
+    def _slice_overlay(self, index):
+        """Sample a slice from the overlay. returns either None or an rgba image."""
+        if self._overlay is None:
+            return None
+        overlay = self._overlay.astype(np.uint8, copy=False)  # need int to index
+        # Sample the slice
+        indices = [slice(None), slice(None), slice(None)]
+        indices[self._axis] = index
+        im = overlay[tuple(indices)]
+        # Turn into rgba
+        colormap = [(0, 0, 0, 0), (255, 0, 0, 100)]
+        max_mask = im.max()
+        while len(colormap) <= max_mask:
+            colormap.append(colormap[-1])
+        colormap = np.array(colormap)
+        rgba = colormap[im]
+        return rgba
+
     def _create_dash_components(self):
         """Create the graph, slider, figure, etc."""
         info = self._slice_info
@@ -168,10 +208,11 @@ class VolumeSlicer:
         image_trace = Image(
             source="", dx=1, dy=1, hovertemplate="(%{x}, %{y})<extra></extra>"
         )
+        overlay_trace = Image(source="", dx=1, dy=1)
         scatter_trace = Scatter(x=[], y=[])  # placeholder
 
         # Create the figure object - can be accessed by user via slicer.graph.figure
-        self._fig = fig = Figure(data=[image_trace, scatter_trace])
+        self._fig = fig = Figure(data=[image_trace, overlay_trace, scatter_trace])
         fig.update_layout(
             template=None,
             margin=dict(l=0, r=0, b=0, t=0, pad=4),
@@ -232,8 +273,10 @@ class VolumeSlicer:
             [Input(self._requested_index.id, "data")],
         )
         def upload_requested_slice(slice_index):
-            slice = self._slice(slice_index)
-            return [slice_index, img_array_to_uri(slice)]
+            slice = img_array_to_uri(self._slice(slice_index))
+            overlay = self._slice_overlay(slice_index)
+            overlay = None if overlay is None else img_array_to_uri(overlay)
+            return [slice_index, slice, overlay]
 
     def _create_client_callbacks(self):
         """Create the callbacks that run client-side."""
@@ -271,21 +314,27 @@ class VolumeSlicer:
 
         app.clientside_callback(
             """
-        function handle_incoming_slice(index, index_and_data, indicators, ori_figure, lowres, info) {
-            let new_index = index_and_data[0];
-            let new_data = index_and_data[1];
+        function handle_incoming_slice(index, slice_data, indicators, ori_figure, lowres, info) {
+            let new_index = slice_data[0];
+            let new_data = slice_data[1];
+            let new_overlay = slice_data[2];
             // Store data in cache
             if (!window.slicecache_for_{{ID}}) { window.slicecache_for_{{ID}} = {}; }
             let slice_cache = window.slicecache_for_{{ID}};
-            slice_cache[new_index] = new_data;
+            slice_cache[new_index] = [new_data, new_overlay];
             // Get the data we need *now*
-            let data = slice_cache[index];
+            let cached = slice_cache[index];
+            let data, overlay;
             let x0 = info.origin[0], y0 = info.origin[1];
             let dx = info.spacing[0], dy = info.spacing[1];
             //slice_cache[new_index] = undefined;  // todo: disabled cache for now!
             // Maybe we do not need an update
-            if (!data) {
+            if (cached) {
+                data = cached[0];
+                overlay = cached[1];
+            } else {
                 data = lowres[index];
+                overlay = null;
                 // Scale the image to take the exact same space as the full-res
                 // version. It's not correct, but it looks better ...
                 dx *= info.size[0] / info.lowres_size[0];
@@ -304,7 +353,12 @@ class VolumeSlicer:
             figure.data[0].y0 = y0;
             figure.data[0].dx = dx;
             figure.data[0].dy = dy;
-            figure.data[1] = indicators;
+            figure.data[1].source = overlay;
+            figure.data[1].x0 = x0;
+            figure.data[1].y0 = y0;
+            figure.data[1].dx = dx;
+            figure.data[1].dy = dy;
+            figure.data[2] = indicators;
             return figure;
         }
         """.replace(
