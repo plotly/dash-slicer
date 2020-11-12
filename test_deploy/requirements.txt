@@ -1,0 +1,7 @@
+pillow
+numpy
+plotly
+dash
+dash_core_components
+imageio
+gunicorn
