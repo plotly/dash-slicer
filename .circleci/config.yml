@@ -38,7 +38,7 @@ jobs:
             fi
             # We force push since branches can diverge and playground is a
             # sandbox
-            git push --force playground $CIRCLE_BRANCH:master
+            DASH_ENTERPRISE_URL="$DASH_PLAYGROUND_ENTERPRISE_URL" DASH_ENTERPRISE_API_KEY="$DASH_PLAYGROUND_ENTERPRISE_API_KEY" git push --force playground $CIRCLE_BRANCH:master
 
 workflows:
   version: 2
