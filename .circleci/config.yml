@@ -33,9 +33,9 @@ jobs:
       - run:
           name: Deploy
           command: |
-              #if ! DASH_ENTERPRISE_URL="$DASH_PLAYGROUND_ENTERPRISE_URL" DASH_ENTERPRISE_API_KEY="$DASH_PLAYGROUND_ENTERPRISE_API_KEY" DASH_ENTERPRISE_USERNAME="$PLAYGROUND_DEPLOY_USERNAME$" dds-client apps:exists --name "$CIRCLE_BRANCH" >/dev/null 2>&1; then
-              # DASH_ENTERPRISE_URL="$DASH_PLAYGROUND_ENTERPRISE_URL" DASH_ENTERPRISE_API_KEY="$DASH_PLAYGROUND_ENTERPRISE_API_KEY" DASH_ENTERPRISE_USERNAME="$PLAYGROUND_DEPLOY_USERNAME$" dds-client apps:create --name "$CIRCLE_BRANCH"
-              #fi
+            #if ! DASH_ENTERPRISE_URL="$DASH_PLAYGROUND_ENTERPRISE_URL" DASH_ENTERPRISE_API_KEY="$DASH_PLAYGROUND_ENTERPRISE_API_KEY" DASH_ENTERPRISE_USERNAME="$PLAYGROUND_DEPLOY_USERNAME$" dds-client apps:exists --name "$CIRCLE_BRANCH" >/dev/null 2>&1; then
+            # DASH_ENTERPRISE_URL="$DASH_PLAYGROUND_ENTERPRISE_URL" DASH_ENTERPRISE_API_KEY="$DASH_PLAYGROUND_ENTERPRISE_API_KEY" DASH_ENTERPRISE_USERNAME="$PLAYGROUND_DEPLOY_USERNAME$" dds-client apps:create --name "$CIRCLE_BRANCH"
+            #fi
             # We force push since branches can diverge and playground is a
             # sandbox
             git push --force playground $CIRCLE_BRANCH:master
