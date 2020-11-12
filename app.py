@@ -9,7 +9,7 @@ import imageio
 
 
 app = dash.Dash(__name__)
-iserve = app.server
+server = app.server
 
 vol = imageio.volread("imageio:stent.npz")
 slicer1 = VolumeSlicer(app, vol, axis=1)
