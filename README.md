@@ -45,3 +45,7 @@ This code is distributed under MIT license.
 * Use `black .` to autoformat.
 * Use `flake8 .` to lint.
 * Use `pytest .` to run the tests.
+
+On every PR, an app with the same name as your branch is deployed to the Dash
+playground instance so that you can change whether your changes did not break
+the package.
