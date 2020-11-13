@@ -137,17 +137,17 @@ class VolumeSlicer:
         return self._stores
 
     @property
-    def trigger(self):
+    def refresh(self):
         """A stub dcc.Store. If a callback outputs to this store, it will
         force the figure to be updated, and the internal cache to be cleared.
         The value in this store has no significance.
         """
-        return self._trigger
+        return self._refresh
 
     def set_overlay(self, overlay):
         """Set the overlay data, a 3D numpy array of the same shape as
         the volume. Can be None to disable the overlay. Note that you
-        should also output to ``this_slicer.trigger`` to trigger a redraw.
+        should also output to ``this_slicer.refresh`` to trigger a redraw.
         """
         if overlay is not None:
             if overlay.dtype not in (np.bool, np.uint8):
@@ -273,7 +273,7 @@ class VolumeSlicer:
         )
 
         # Create the stores that we need (these must be present in the layout)
-        self._trigger = Store(id=self._subid("trigger"), data=None)
+        self._refresh = Store(id=self._subid("refresh"), data=None)
         self._info = Store(id=self._subid("info"), data=info)
         self._position = Store(id=self._subid("position", True), data=0)
         self._requested_index = Store(id=self._subid("req-index"), data=0)
@@ -282,7 +282,7 @@ class VolumeSlicer:
         self._img_traces = Store(id=self._subid("img-traces"), data=[])
         self._indicator_traces = Store(id=self._subid("indicator-traces"), data=[])
         self._stores = [
-            self.trigger,
+            self._refresh,
             self._info,
             self._position,
             self._requested_index,
@@ -298,9 +298,9 @@ class VolumeSlicer:
 
         @app.callback(
             Output(self._request_data.id, "data"),
-            [Input(self._requested_index.id, "data"), Input(self.trigger.id, "data")],
+            [Input(self._requested_index.id, "data"), Input(self._refresh.id, "data")],
         )
-        def upload_requested_slice(slice_index, trigger):
+        def upload_requested_slice(slice_index, refresh):
             slice = img_array_to_uri(self._slice(slice_index))
             overlay = self._slice_overlay(slice_index)
             overlay = None if overlay is None else img_array_to_uri(overlay)
@@ -331,13 +331,13 @@ class VolumeSlicer:
 
         app.clientside_callback(
             """
-        function update_request(trigger, index) {
+        function update_request(refresh, index) {
 
             // Clear the cache?
             if (!window.slicecache_for_{{ID}}) { window.slicecache_for_{{ID}} = {}; }
             let slice_cache = window.slicecache_for_{{ID}};
             for (let trigger of dash_clientside.callback_context.triggered) {
-                if (trigger.prop_id.indexOf('trigger') >= 0) {
+                if (trigger.prop_id.indexOf('refresh') >= 0) {
                     slice_cache = window.slicecache_for_{{ID}} = {};
                     break;
                 }
@@ -356,7 +356,7 @@ class VolumeSlicer:
                 "{{ID}}", self._context_id
             ),
             Output(self._requested_index.id, "data"),
-            [Input(self.trigger.id, "data"), Input(self.slider.id, "value")],
+            [Input(self._refresh.id, "data"), Input(self.slider.id, "value")],
         )
 
         # ----------------------------------------------------------------------
