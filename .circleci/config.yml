@@ -8,7 +8,7 @@ jobs:
       - checkout
       - run:
           name: Add plotly remote
-          command: git remote add playground https://dash-playground.plotly.host/GIT/$CIRCLE_BRANCH
+          command: git remote add playground https://dash-playground.plotly.host/GIT/slicer-CIRCLE_BRANCH
       - run:
           name: Create helper-script
           command: printf '#!/bin/bash\necho username=$PLAYGROUND_DEPLOY_USERNAME\necho password=$PLAYGROUND_DEPLOY_PASSWORD' >> /home/circleci/helper-script.sh
@@ -33,13 +33,12 @@ jobs:
       - run:
           name: Deploy
           command: |
-            git checkout -b slicer-$CIRCLE_BRANCH
             if ! DASH_ENTERPRISE_URL="$DASH_PLAYGROUND_ENTERPRISE_URL" DASH_ENTERPRISE_API_KEY="$DASH_PLAYGROUND_ENTERPRISE_API_KEY" DASH_ENTERPRISE_USERNAME="$PLAYGROUND_DEPLOY_USERNAME" dds-client apps:exists --name "slicer-$CIRCLE_BRANCH" >/dev/null 2>&1; then
               DASH_ENTERPRISE_URL="$DASH_PLAYGROUND_ENTERPRISE_URL" DASH_ENTERPRISE_API_KEY="$DASH_PLAYGROUND_ENTERPRISE_API_KEY" DASH_ENTERPRISE_USERNAME="$PLAYGROUND_DEPLOY_USERNAME" dds-client apps:create --name "slicer-$CIRCLE_BRANCH"
             fi
             # We force push since branches can diverge and playground is a
             # sandbox
-            git push --force playground slicer-$CIRCLE_BRANCH:master
+            git push --force playground $CIRCLE_BRANCH:master
 
 workflows:
   version: 2
