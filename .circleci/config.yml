@@ -8,7 +8,7 @@ jobs:
       - checkout
       - run:
           name: Add plotly remote
-          command: git remote add playground https://dash-playground.plotly.host/GIT/slicer-CIRCLE_BRANCH
+          command: git remote add playground https://dash-playground.plotly.host/GIT/slicer-$CIRCLE_BRANCH
       - run:
           name: Create helper-script
           command: printf '#!/bin/bash\necho username=$PLAYGROUND_DEPLOY_USERNAME\necho password=$PLAYGROUND_DEPLOY_PASSWORD' >> /home/circleci/helper-script.sh
