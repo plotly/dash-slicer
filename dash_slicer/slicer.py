@@ -1,5 +1,5 @@
 import numpy as np
-from plotly.graph_objects import Figure, Image, Scatter
+from plotly.graph_objects import Figure
 from dash import Dash
 from dash.dependencies import Input, Output, State, ALL
 from dash_core_components import Graph, Slider, Store
@@ -16,7 +16,7 @@ class VolumeSlicer:
         are assumed to be in zyx order. If this is not the case, you can
         use ``np.swapaxes`` to make it so.
       overlay (ndarray): a 3D numpy array of the same shape as volume, either
-        boolean or uint8, describing an overlay mask. Default None
+        boolean or uint8, describing an overlay mask. Default None.
       spacing (tuple of floats): The distance between voxels for each
         dimension (zyx).The spacing and origin are applied to make the slice
         drawn in "scene space" rather than "voxel space".
@@ -130,14 +130,23 @@ class VolumeSlicer:
 
     @property
     def stores(self):
-        """A list of dcc.Stores that the slicer needs to work. These must
-        be added to the app layout.
+        """A list of dcc.Store objects that the slicer needs to work.
+        These must be added to the app layout.
         """
         return self._stores
 
+    @property
+    def trigger(self):
+        """A stub dcc.Store. If a callback outputs to this store, it will
+        force the figure to be updated, and the internal cache to be cleared.
+        The value in this store has no significance.
+        """
+        return self._trigger
+
     def set_overlay(self, overlay):
-        """Set the overlay data, a 3D numpy array of the same shape
-        as the volume. Can be None to disable the overlay.
+        """Set the overlay data, a 3D numpy array of the same shape as
+        the volume. Can be None to disable the overlay. Note that you
+        should also output to ``this_slicer.trigger`` to trigger a redraw.
         """
         if overlay is not None:
             if overlay.dtype not in (np.bool, np.uint8):
@@ -149,7 +158,6 @@ class VolumeSlicer:
                     f"Overlay must has shape {overlay.shape}, but expected {self._volume.shape}"
                 )
         self._overlay = overlay
-        # todo: how to trigger an update of the figure in JS?
 
     def _subid(self, name, use_dict=False):
         """Given a name, get the full id including the context id prefix."""
@@ -175,16 +183,20 @@ class VolumeSlicer:
 
     def _slice_overlay(self, index):
         """Sample a slice from the overlay. returns either None or an rgba image."""
-        if self._overlay is None:
+        overlay = self._overlay
+        if overlay is None:
             return None
-        overlay = self._overlay.astype(np.uint8, copy=False)  # need int to index
+        overlay = overlay.astype(np.uint8, copy=False)  # need int to index
         # Sample the slice
         indices = [slice(None), slice(None), slice(None)]
         indices[self._axis] = index
         im = overlay[tuple(indices)]
+        max_mask = im.max()
+        # If the mask is all zeros, we can simply not draw it.
+        if max_mask == 0:
+            return None
         # Turn into rgba
         colormap = [(0, 0, 0, 0), (255, 0, 0, 100)]
-        max_mask = im.max()
         while len(colormap) <= max_mask:
             colormap.append(colormap[-1])
         colormap = np.array(colormap)
@@ -203,16 +215,8 @@ class VolumeSlicer:
         ]
         info["lowres_size"] = thumbnail_size
 
-        # Create traces
-        # todo: can add "%{z[0]}", but that would be the scaled value ...
-        image_trace = Image(
-            source="", dx=1, dy=1, hovertemplate="(%{x}, %{y})<extra></extra>"
-        )
-        overlay_trace = Image(source="", dx=1, dy=1)
-        scatter_trace = Scatter(x=[], y=[])  # placeholder
-
         # Create the figure object - can be accessed by user via slicer.graph.figure
-        self._fig = fig = Figure(data=[image_trace, overlay_trace, scatter_trace])
+        self._fig = fig = Figure(data=[])
         fig.update_layout(
             template=None,
             margin=dict(l=0, r=0, b=0, t=0, pad=4),
@@ -249,19 +253,23 @@ class VolumeSlicer:
         )
 
         # Create the stores that we need (these must be present in the layout)
+        self._trigger = Store(id=self._subid("trigger"), data=None)
         self._info = Store(id=self._subid("info"), data=info)
         self._position = Store(id=self._subid("position", True), data=0)
         self._requested_index = Store(id=self._subid("req-index"), data=0)
         self._request_data = Store(id=self._subid("req-data"), data="")
         self._lowres_data = Store(id=self._subid("lowres-data"), data=thumbnails)
-        self._indicators = Store(id=self._subid("indicators"), data=[])
+        self._img_traces = Store(id=self._subid("img-traces"), data=[])
+        self._indicator_traces = Store(id=self._subid("indicator-traces"), data=[])
         self._stores = [
+            self.trigger,
             self._info,
             self._position,
             self._requested_index,
             self._request_data,
             self._lowres_data,
-            self._indicators,
+            self._img_traces,
+            self._indicator_traces,
         ]
 
     def _create_server_callbacks(self):
@@ -270,17 +278,20 @@ class VolumeSlicer:
 
         @app.callback(
             Output(self._request_data.id, "data"),
-            [Input(self._requested_index.id, "data")],
+            [Input(self._requested_index.id, "data"), Input(self.trigger.id, "data")],
         )
-        def upload_requested_slice(slice_index):
+        def upload_requested_slice(slice_index, trigger):
             slice = img_array_to_uri(self._slice(slice_index))
             overlay = self._slice_overlay(slice_index)
             overlay = None if overlay is None else img_array_to_uri(overlay)
-            return [slice_index, slice, overlay]
+            return {"index": slice_index, "slice": slice, "overlay": overlay}
 
     def _create_client_callbacks(self):
         """Create the callbacks that run client-side."""
         app = self._app
+
+        # ----------------------------------------------------------------------
+        # Callback to update position (in scene coordinates) from the index.
 
         app.clientside_callback(
             """
@@ -293,15 +304,31 @@ class VolumeSlicer:
             [State(self._info.id, "data")],
         )
 
+        # ----------------------------------------------------------------------
+        # Callback to request new slices.
+        # Note: this callback cannot be merged with the one below, because
+        # it would create a circular dependency.
+
         app.clientside_callback(
             """
-        function handle_slice_index(index) {
+        function update_request(trigger, index) {
+
+            // Clear the cache?
             if (!window.slicecache_for_{{ID}}) { window.slicecache_for_{{ID}} = {}; }
             let slice_cache = window.slicecache_for_{{ID}};
+            for (let trigger of dash_clientside.callback_context.triggered) {
+                if (trigger.prop_id.indexOf('trigger') >= 0) {
+                    slice_cache = window.slicecache_for_{{ID}} = {};
+                    break;
+                }
+            }
+
+            // Request a new slice (or not)
+            let request_index = index;
             if (slice_cache[index]) {
                 return window.dash_clientside.no_update;
             } else {
-                console.log('requesting slice ' + index)
+                console.log('request slice ' + index);
                 return index;
             }
         }
@@ -309,73 +336,79 @@ class VolumeSlicer:
                 "{{ID}}", self._context_id
             ),
             Output(self._requested_index.id, "data"),
-            [Input(self.slider.id, "value")],
+            [Input(self.trigger.id, "data"), Input(self.slider.id, "value")],
         )
+
+        # ----------------------------------------------------------------------
+        # Callback that creates a list of image traces (slice and overlay).
 
         app.clientside_callback(
             """
-        function handle_incoming_slice(index, slice_data, indicators, ori_figure, lowres, info) {
-            let new_index = slice_data[0];
-            let new_data = slice_data[1];
-            let new_overlay = slice_data[2];
-            // Store data in cache
+        function update_image_traces(index, req_data, lowres, info, current_traces) {
+
+            // Add data to the cache if the data is indeed new
             if (!window.slicecache_for_{{ID}}) { window.slicecache_for_{{ID}} = {}; }
             let slice_cache = window.slicecache_for_{{ID}};
-            slice_cache[new_index] = [new_data, new_overlay];
-            // Get the data we need *now*
-            let cached = slice_cache[index];
-            let data, overlay;
-            let x0 = info.origin[0], y0 = info.origin[1];
-            let dx = info.spacing[0], dy = info.spacing[1];
-            //slice_cache[new_index] = undefined;  // todo: disabled cache for now!
-            // Maybe we do not need an update
-            if (cached) {
-                data = cached[0];
-                overlay = cached[1];
+            for (let trigger of dash_clientside.callback_context.triggered) {
+                if (trigger.prop_id.indexOf('req-data') >= 0) {
+                    slice_cache[req_data.index] = req_data;
+                    break;
+                }
+            }
+
+            // Prepare traces
+            let slice_trace = {
+                type: 'image',
+                x0: info.origin[0],
+                y0: info.origin[1],
+                dx: info.spacing[0],
+                dy: info.spacing[1],
+                hovertemplate: '(%{x:.2f}, %{y:.2f})<extra></extra>'
+            };
+            let overlay_trace = {...slice_trace};
+            overlay_trace.hoverinfo = 'skip';
+            overlay_trace.hovertemplate = '';
+            let new_traces = [slice_trace, overlay_trace];
+
+            // Depending on the state of the cache, use full data, or use lowres and request slice
+            if (slice_cache[index]) {
+                let cached = slice_cache[index];
+                slice_trace.source = cached.slice;
+                overlay_trace.source = cached.overlay || "";
             } else {
-                data = lowres[index];
-                overlay = null;
+                slice_trace.source = lowres[index];
+                overlay_trace.source = "";
                 // Scale the image to take the exact same space as the full-res
                 // version. It's not correct, but it looks better ...
-                dx *= info.size[0] / info.lowres_size[0];
-                dy *= info.size[1] / info.lowres_size[1];
-                x0 += 0.5 * dx - 0.5 * info.spacing[0];
-                y0 += 0.5 * dy - 0.5 * info.spacing[1];
+                slice_trace.dx *= info.size[0] / info.lowres_size[0];
+                slice_trace.dy *= info.size[1] / info.lowres_size[1];
+                slice_trace.x0 += 0.5 * slice_trace.dx - 0.5 * info.spacing[0];
+                slice_trace.y0 += 0.5 * slice_trace.dy - 0.5 * info.spacing[1];
             }
-            if (data == ori_figure.data[0].source && indicators.version == ori_figure.data[1].version) {
-                return window.dash_clientside.no_update;
+
+            // Has the image data even changed?
+            if (!current_traces.length) { current_traces = [{source:''}, {source:''}]; }
+            if (new_traces[0].source == current_traces[0].source &&
+                new_traces[1].source == current_traces[1].source)
+            {
+                new_traces = window.dash_clientside.no_update;
             }
-            // Otherwise, perform update
-            console.log("updating figure");
-            let figure = {...ori_figure};
-            figure.data[0].source = data;
-            figure.data[0].x0 = x0;
-            figure.data[0].y0 = y0;
-            figure.data[0].dx = dx;
-            figure.data[0].dy = dy;
-            figure.data[1].source = overlay;
-            figure.data[1].x0 = x0;
-            figure.data[1].y0 = y0;
-            figure.data[1].dx = dx;
-            figure.data[1].dy = dy;
-            figure.data[2] = indicators;
-            return figure;
+            return new_traces;
         }
         """.replace(
                 "{{ID}}", self._context_id
             ),
-            Output(self.graph.id, "figure"),
+            Output(self._img_traces.id, "data"),
+            [Input(self.slider.id, "value"), Input(self._request_data.id, "data")],
             [
-                Input(self.slider.id, "value"),
-                Input(self._request_data.id, "data"),
-                Input(self._indicators.id, "data"),
-            ],
-            [
-                State(self.graph.id, "figure"),
                 State(self._lowres_data.id, "data"),
                 State(self._info.id, "data"),
+                State(self._img_traces.id, "data"),
             ],
         )
+
+        # ----------------------------------------------------------------------
+        # Callback to create scatter traces from the positions of other slicers.
 
         # Select the *other* axii
         axii = [0, 1, 2]
@@ -403,7 +436,7 @@ class VolumeSlicer:
                 x.push(...[pos, pos, pos, pos, pos, pos]);
                 y.push(...[y0 - d, y0, null, y1, y1 + d, null]);
             }
-            return {
+            return [{
                 type: 'scatter',
                 mode: 'lines',
                 line: {color: '#ff00aa'},
@@ -411,10 +444,10 @@ class VolumeSlicer:
                 y: y,
                 hoverinfo: 'skip',
                 version: version
-            };
+            }];
         }
         """,
-            Output(self._indicators.id, "data"),
+            Output(self._indicator_traces.id, "data"),
             [
                 Input(
                     {
@@ -429,6 +462,35 @@ class VolumeSlicer:
             ],
             [
                 State(self._info.id, "data"),
-                State(self._indicators.id, "data"),
+                State(self._indicator_traces.id, "data"),
+            ],
+        )
+
+        # ----------------------------------------------------------------------
+        # Callback that composes a figure from multiple trace sources.
+
+        app.clientside_callback(
+            """
+        function update_figure(img_traces, indicators, ori_figure) {
+
+            // Collect traces
+            let traces = [];
+            for (let trace of img_traces) { traces.push(trace); }
+            for (let trace of indicators) { traces.push(trace); }
+
+            // Update figure
+            console.log("updating figure");
+            let figure = {...ori_figure};
+            figure.data = traces;
+            return figure;
+        }
+        """,
+            Output(self.graph.id, "figure"),
+            [
+                Input(self._img_traces.id, "data"),
+                Input(self._indicator_traces.id, "data"),
+            ],
+            [
+                State(self.graph.id, "figure"),
             ],
         )
