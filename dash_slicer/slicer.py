@@ -72,6 +72,7 @@ class VolumeSlicer:
 
         # Check and store overlay
         self.set_overlay(overlay)
+        self._overlay_colormap = [(0, 0, 0, 0), (0, 255, 255, 100)]
 
         # Check and store axis
         if not (isinstance(axis, int) and 0 <= axis <= 2):
@@ -159,6 +160,25 @@ class VolumeSlicer:
                 )
         self._overlay = overlay
 
+    def set_overlay_colormap(self, color):
+        """Set the colormap of the overlay. The given color can be
+        either a single RGBA color, or a list of colors (a colormap).
+        Each color is an 4-element tuple of integers between 0 and 255.
+        """
+        color = np.array(color, np.uint8)
+        if color.ndim == 1:
+            if color.shape[0] != 4:
+                raise ValueError("Overlay color must be 4 ints (0..255).")
+            self._overlay_colormap = [(0, 0, 0, 0), tuple(color)]
+        elif color.ndim == 2:
+            if color.shape[1] != 4:
+                raise ValueError("Overlay colors must be 4 ints (0..255).")
+            self._overlay_colormap = [tuple(x) for x in color]
+        else:
+            raise ValueError(
+                "Overlay color must be a single color or a list of colors."
+            )
+
     def _subid(self, name, use_dict=False):
         """Given a name, get the full id including the context id prefix."""
         if use_dict:
@@ -196,7 +216,7 @@ class VolumeSlicer:
         if max_mask == 0:
             return None
         # Turn into rgba
-        colormap = [(0, 0, 0, 0), (255, 0, 0, 100)]
+        colormap = self._overlay_colormap
         while len(colormap) <= max_mask:
             colormap.append(colormap[-1])
         colormap = np.array(colormap)

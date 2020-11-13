@@ -1,5 +1,9 @@
 """
-An example demonstrating overlays, by showing a mask obtained by thresholding on top.
+An example demonstrating overlays.
+
+This shows a volume with a mask overlaid. In this case the mask has 3
+possible values (0, 1, 2), and is created by applying two thresholds
+to the image data.
 """
 
 import dash
@@ -15,7 +19,8 @@ app = dash.Dash(__name__)
 vol = imageio.volread("imageio:stent.npz")
 slicer = VolumeSlicer(app, vol)
 
-devnull = dcc.Store(id="devnull", data=0)
+# Set colormap so that lower threshold shows in yellow, and higher in red
+slicer.set_overlay_colormap([(0, 0, 0, 0), (255, 255, 0, 50), (255, 0, 0, 100)])
 
 app.layout = html.Div(
     [
@@ -39,7 +44,9 @@ app.layout = html.Div(
     [Input("level-slider", "value")],
 )
 def handle_slider(level):
-    slicer.set_overlay(vol > level)
+    mask = (vol > level).astype("uint8")
+    mask += vol > level / 2
+    slicer.set_overlay(mask)
     return None
 
 
