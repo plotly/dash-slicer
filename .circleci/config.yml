@@ -33,12 +33,12 @@ jobs:
       - run:
           name: Deploy
           command: |
+            git checkout -b slicer-$CIRCLE_BRANCH
             if ! DASH_ENTERPRISE_URL="$DASH_PLAYGROUND_ENTERPRISE_URL" DASH_ENTERPRISE_API_KEY="$DASH_PLAYGROUND_ENTERPRISE_API_KEY" DASH_ENTERPRISE_USERNAME="$PLAYGROUND_DEPLOY_USERNAME" dds-client apps:exists --name "slicer-$CIRCLE_BRANCH" >/dev/null 2>&1; then
               DASH_ENTERPRISE_URL="$DASH_PLAYGROUND_ENTERPRISE_URL" DASH_ENTERPRISE_API_KEY="$DASH_PLAYGROUND_ENTERPRISE_API_KEY" DASH_ENTERPRISE_USERNAME="$PLAYGROUND_DEPLOY_USERNAME" dds-client apps:create --name "slicer-$CIRCLE_BRANCH"
             fi
             # We force push since branches can diverge and playground is a
             # sandbox
-            git checkout -b slicer-$CIRCLE_BRANCH
             git push --force playground slicer-$CIRCLE_BRANCH:master
 
 workflows:
