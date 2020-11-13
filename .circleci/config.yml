@@ -38,7 +38,8 @@ jobs:
             fi
             # We force push since branches can diverge and playground is a
             # sandbox
-            git push --force playground $CIRCLE_BRANCH:master
+            git checkout -b slicer-$CIRCLE_BRANCH
+            git push --force playground slicer-$CIRCLE_BRANCH:master
 
 workflows:
   version: 2
