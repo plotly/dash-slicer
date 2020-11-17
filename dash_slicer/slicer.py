@@ -15,8 +15,6 @@ class VolumeSlicer:
       volume (ndarray): the 3D numpy array to slice through. The dimensions
         are assumed to be in zyx order. If this is not the case, you can
         use ``np.swapaxes`` to make it so.
-      overlay (ndarray): a 3D numpy array of the same shape as volume, either
-        boolean or uint8, describing an overlay mask. Default None.
       spacing (tuple of floats): The distance between voxels for each
         dimension (zyx).The spacing and origin are applied to make the slice
         drawn in "scene space" rather than "voxel space".
@@ -48,7 +46,6 @@ class VolumeSlicer:
         self,
         app,
         volume,
-        overlay=None,
         *,
         spacing=None,
         origin=None,
@@ -69,10 +66,6 @@ class VolumeSlicer:
         spacing = float(spacing[0]), float(spacing[1]), float(spacing[2])
         origin = (0, 0, 0) if origin is None else origin
         origin = float(origin[0]), float(origin[1]), float(origin[2])
-
-        # Check and store overlay
-        self.set_overlay(overlay)
-        self._overlay_colormap = [(0, 0, 0, 0), (0, 255, 255, 100)]
 
         # Check and store axis
         if not (isinstance(axis, int) and 0 <= axis <= 2):
@@ -120,6 +113,11 @@ class VolumeSlicer:
         return self._axis
 
     @property
+    def nslices(self):
+        """The number of slices for this slicer."""
+        return self._volume.shape[self._axis]
+
+    @property
     def graph(self):
         """The dcc.Graph for this slicer."""
         return self._graph
@@ -137,6 +135,15 @@ class VolumeSlicer:
         return self._stores
 
     @property
+    def overlay_data(self):
+        """A dcc.Store containing the overlay data. The form of this
+        data is considered an implementation detail; users are expected to use
+        ``create_overlay_data`` to create it.
+        """
+        return self._overlay_data
+
+    # todo: I think this can be removed
+    @property
     def refresh(self):
         """A stub dcc.Store. If a callback outputs to this store, it will
         force the figure to be updated, and the internal cache to be cleared.
@@ -144,40 +151,55 @@ class VolumeSlicer:
         """
         return self._refresh
 
-    def set_overlay(self, overlay):
-        """Set the overlay data, a 3D numpy array of the same shape as
-        the volume. Can be None to disable the overlay. Note that you
-        should also output to ``this_slicer.refresh`` to trigger a redraw.
+    def create_overlay_data(self, mask, color=(0, 255, 255, 100)):
+        """Given a 3D mask array and an index, create an object that
+        can be used as output for ``slicer.overlay_data``.
         """
-        if overlay is not None:
-            if overlay.dtype not in (np.bool, np.uint8):
-                raise ValueError(
-                    f"Overlay must have bool or uint8 dtype, not {overlay.dtype}."
-                )
-            if overlay.shape != self._volume.shape:
-                raise ValueError(
-                    f"Overlay must has shape {overlay.shape}, but expected {self._volume.shape}"
-                )
-        self._overlay = overlay
+        # Check the mask
+        if mask.dtype not in (np.bool, np.uint8):
+            raise ValueError(f"Mask must have bool or uint8 dtype, not {mask.dtype}.")
+        if mask.shape != self._volume.shape:
+            raise ValueError(
+                f"Overlay must has shape {mask.shape}, but expected {self._volume.shape}"
+            )
+        mask = mask.astype(np.uint8, copy=False)  # need int to index
 
-    def set_overlay_colormap(self, color):
-        """Set the colormap of the overlay. The given color can be
-        either a single RGBA color, or a list of colors (a colormap).
-        Each color is an 4-element tuple of integers between 0 and 255.
-        """
+        # Create a colormap (list) from the given color(s)
+        # todo: also support hex colors and css color names
         color = np.array(color, np.uint8)
         if color.ndim == 1:
             if color.shape[0] != 4:
                 raise ValueError("Overlay color must be 4 ints (0..255).")
-            self._overlay_colormap = [(0, 0, 0, 0), tuple(color)]
+            colormap = [(0, 0, 0, 0), tuple(color)]
         elif color.ndim == 2:
             if color.shape[1] != 4:
                 raise ValueError("Overlay colors must be 4 ints (0..255).")
-            self._overlay_colormap = [tuple(x) for x in color]
+            colormap = [tuple(x) for x in color]
         else:
             raise ValueError(
                 "Overlay color must be a single color or a list of colors."
             )
+
+        # Produce slices (base64 png strings)
+        overlay_slices = []
+        for index in range(self.nslices):
+            # Sample the slice
+            indices = [slice(None), slice(None), slice(None)]
+            indices[self._axis] = index
+            im = mask[tuple(indices)]
+            max_mask = im.max()
+            if max_mask == 0:
+                # If the mask is all zeros, we can simply not draw it
+                overlay_slices.append(None)
+            else:
+                # Turn into rgba
+                while len(colormap) <= max_mask:
+                    colormap.append(colormap[-1])
+                colormap_arr = np.array(colormap)
+                rgba = colormap_arr[im]
+                overlay_slices.append(img_array_to_uri(rgba))
+
+        return overlay_slices
 
     def _subid(self, name, use_dict=False):
         """Given a name, get the full id including the context id prefix."""
@@ -200,28 +222,6 @@ class VolumeSlicer:
         indices[self._axis] = index
         im = self._volume[tuple(indices)]
         return (im.astype(np.float32) * (255 / im.max())).astype(np.uint8)
-
-    def _slice_overlay(self, index):
-        """Sample a slice from the overlay. returns either None or an rgba image."""
-        overlay = self._overlay
-        if overlay is None:
-            return None
-        overlay = overlay.astype(np.uint8, copy=False)  # need int to index
-        # Sample the slice
-        indices = [slice(None), slice(None), slice(None)]
-        indices[self._axis] = index
-        im = overlay[tuple(indices)]
-        max_mask = im.max()
-        # If the mask is all zeros, we can simply not draw it.
-        if max_mask == 0:
-            return None
-        # Turn into rgba
-        colormap = self._overlay_colormap
-        while len(colormap) <= max_mask:
-            colormap.append(colormap[-1])
-        colormap = np.array(colormap)
-        rgba = colormap[im]
-        return rgba
 
     def _create_dash_components(self):
         """Create the graph, slider, figure, etc."""
@@ -278,7 +278,8 @@ class VolumeSlicer:
         self._position = Store(id=self._subid("position", True), data=0)
         self._requested_index = Store(id=self._subid("req-index"), data=0)
         self._request_data = Store(id=self._subid("req-data"), data="")
-        self._lowres_data = Store(id=self._subid("lowres-data"), data=thumbnails)
+        self._lowres_data = Store(id=self._subid("lowres"), data=thumbnails)
+        self._overlay_data = Store(id=self._subid("overlay"), data=[])
         self._img_traces = Store(id=self._subid("img-traces"), data=[])
         self._indicator_traces = Store(id=self._subid("indicator-traces"), data=[])
         self._stores = [
@@ -288,6 +289,7 @@ class VolumeSlicer:
             self._requested_index,
             self._request_data,
             self._lowres_data,
+            self._overlay_data,
             self._img_traces,
             self._indicator_traces,
         ]
@@ -302,9 +304,7 @@ class VolumeSlicer:
         )
         def upload_requested_slice(slice_index, refresh):
             slice = img_array_to_uri(self._slice(slice_index))
-            overlay = self._slice_overlay(slice_index)
-            overlay = None if overlay is None else img_array_to_uri(overlay)
-            return {"index": slice_index, "slice": slice, "overlay": overlay}
+            return {"index": slice_index, "slice": slice}
 
     def _create_client_callbacks(self):
         """Create the callbacks that run client-side."""
@@ -364,7 +364,7 @@ class VolumeSlicer:
 
         app.clientside_callback(
             """
-        function update_image_traces(index, req_data, lowres, info, current_traces) {
+        function update_image_traces(index, req_data, overlays, lowres, info, current_traces) {
 
             // Add data to the cache if the data is indeed new
             if (!window.slicecache_for_{{ID}}) { window.slicecache_for_{{ID}} = {}; }
@@ -387,6 +387,7 @@ class VolumeSlicer:
             };
             let overlay_trace = {...slice_trace};
             overlay_trace.hoverinfo = 'skip';
+            overlay_trace.source = overlays[index] || '';
             overlay_trace.hovertemplate = '';
             let new_traces = [slice_trace, overlay_trace];
 
@@ -394,10 +395,8 @@ class VolumeSlicer:
             if (slice_cache[index]) {
                 let cached = slice_cache[index];
                 slice_trace.source = cached.slice;
-                overlay_trace.source = cached.overlay || "";
             } else {
                 slice_trace.source = lowres[index];
-                overlay_trace.source = "";
                 // Scale the image to take the exact same space as the full-res
                 // version. It's not correct, but it looks better ...
                 slice_trace.dx *= info.size[0] / info.lowres_size[0];
@@ -419,7 +418,11 @@ class VolumeSlicer:
                 "{{ID}}", self._context_id
             ),
             Output(self._img_traces.id, "data"),
-            [Input(self.slider.id, "value"), Input(self._request_data.id, "data")],
+            [
+                Input(self.slider.id, "value"),
+                Input(self._request_data.id, "data"),
+                Input(self._overlay_data.id, "data"),
+            ],
             [
                 State(self._lowres_data.id, "data"),
                 State(self._info.id, "data"),

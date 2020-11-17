@@ -1,7 +1,7 @@
 """
 An example demonstrating overlays.
 
-This shows a volume with a mask overlaid. In this case the mask has 3
+This shows a volume with a mask overlay. In this case the mask has 3
 possible values (0, 1, 2), and is created by applying two thresholds
 to the image data.
 """
@@ -11,6 +11,7 @@ import dash_html_components as html
 import dash_core_components as dcc
 from dash.dependencies import Input, Output
 from dash_slicer import VolumeSlicer
+import numpy as np
 import imageio
 
 
@@ -20,7 +21,6 @@ vol = imageio.volread("imageio:stent.npz")
 mi, ma = vol.min(), vol.max()
 slicer = VolumeSlicer(app, vol)
 
-
 slicer.graph.config.update(
     modeBarButtonsToAdd=[
         "drawclosedpath",
@@ -28,9 +28,6 @@ slicer.graph.config.update(
     ]
 )
 
-
-# Set colormap so that lower threshold shows in yellow, and higher in red
-slicer.set_overlay_colormap([(0, 0, 0, 0), (255, 255, 0, 50), (255, 0, 0, 100)])
 
 app.layout = html.Div(
     [
@@ -49,15 +46,19 @@ app.layout = html.Div(
 )
 
 
+# Define colormap to make the lower threshold shown in yellow, and higher in red
+colormap = [(0, 0, 0, 0), (255, 255, 0, 50), (255, 0, 0, 100)]
+
+
 @app.callback(
-    Output(slicer.refresh.id, "data"),
+    Output(slicer.overlay_data.id, "data"),
     [Input("level-slider", "value")],
 )
-def handle_slider(level):
-    mask = (vol > level[0]).astype("uint8")
+def apply_levels(level):
+    mask = np.zeros(vol.shape, np.uint8)
+    mask += vol > level[0]
     mask += vol > level[1]
-    slicer.set_overlay(mask)
-    return None
+    return slicer.create_overlay_data(mask, colormap)
 
 
 if __name__ == "__main__":
