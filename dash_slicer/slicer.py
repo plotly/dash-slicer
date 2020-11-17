@@ -142,15 +142,6 @@ class VolumeSlicer:
         """
         return self._overlay_data
 
-    # todo: I think this can be removed
-    @property
-    def refresh(self):
-        """A stub dcc.Store. If a callback outputs to this store, it will
-        force the figure to be updated, and the internal cache to be cleared.
-        The value in this store has no significance.
-        """
-        return self._refresh
-
     def create_overlay_data(self, mask, color=(0, 255, 255, 100)):
         """Given a 3D mask array and an index, create an object that
         can be used as output for ``slicer.overlay_data``.
@@ -273,7 +264,6 @@ class VolumeSlicer:
         )
 
         # Create the stores that we need (these must be present in the layout)
-        self._refresh = Store(id=self._subid("refresh"), data=None)
         self._info = Store(id=self._subid("info"), data=info)
         self._position = Store(id=self._subid("position", True), data=0)
         self._requested_index = Store(id=self._subid("req-index"), data=0)
@@ -283,7 +273,6 @@ class VolumeSlicer:
         self._img_traces = Store(id=self._subid("img-traces"), data=[])
         self._indicator_traces = Store(id=self._subid("indicator-traces"), data=[])
         self._stores = [
-            self._refresh,
             self._info,
             self._position,
             self._requested_index,
@@ -300,9 +289,9 @@ class VolumeSlicer:
 
         @app.callback(
             Output(self._request_data.id, "data"),
-            [Input(self._requested_index.id, "data"), Input(self._refresh.id, "data")],
+            [Input(self._requested_index.id, "data")],
         )
-        def upload_requested_slice(slice_index, refresh):
+        def upload_requested_slice(slice_index):
             slice = img_array_to_uri(self._slice(slice_index))
             return {"index": slice_index, "slice": slice}
 
@@ -331,17 +320,11 @@ class VolumeSlicer:
 
         app.clientside_callback(
             """
-        function update_request(refresh, index) {
+        function update_request(index) {
 
             // Clear the cache?
             if (!window.slicecache_for_{{ID}}) { window.slicecache_for_{{ID}} = {}; }
             let slice_cache = window.slicecache_for_{{ID}};
-            for (let trigger of dash_clientside.callback_context.triggered) {
-                if (trigger.prop_id.indexOf('refresh') >= 0) {
-                    slice_cache = window.slicecache_for_{{ID}} = {};
-                    break;
-                }
-            }
 
             // Request a new slice (or not)
             let request_index = index;
@@ -356,7 +339,7 @@ class VolumeSlicer:
                 "{{ID}}", self._context_id
             ),
             Output(self._requested_index.id, "data"),
-            [Input(self._refresh.id, "data"), Input(self.slider.id, "value")],
+            [Input(self.slider.id, "value")],
         )
 
         # ----------------------------------------------------------------------
