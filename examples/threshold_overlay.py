@@ -16,6 +16,7 @@ import imageio
 
 
 app = dash.Dash(__name__)
+server = app.server
 
 vol = imageio.volread("imageio:stent.npz")
 mi, ma = vol.min(), vol.max()
