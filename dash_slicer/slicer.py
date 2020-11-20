@@ -38,6 +38,15 @@ class VolumeSlicer:
       style ``display: none``.
     * ``stores``: a list of dcc.Store objects.
 
+    To programatically set the position of the slicer, use a store with
+    a dictionary-id with the following fields:
+
+    * 'context': a unique name for this store.
+    * 'scene': the scene_id for which to set the position
+    * 'name': 'setpos'
+
+    The value in the store must be an 3-element tuple (x, y, z) in scene coordinates.
+    To apply the position for one position only, use e.g ``(None, None, x)``.
     """
 
     _global_slicer_counter = 0
@@ -338,6 +347,7 @@ class VolumeSlicer:
             for (let trigger of dash_clientside.callback_context.triggered) {
                 if (!trigger.value) continue;
                 let pos = trigger.value[2 - info.axis];
+                if (typeof pos !== 'number') continue;
                 let index = Math.round((pos - info.origin[2]) / info.spacing[2]);
                 return Math.max(0, Math.min(info.size[2] - 1, index));
             }
