@@ -25,7 +25,7 @@ vol1 = imageio.volread("imageio:stent.npz")
 
 vol2 = vol1[::3, ::2, :]
 spacing = 3, 2, 1
-ori = 110, 120, 140
+ori = 1000, 2000, 3000
 
 
 slicer1 = VolumeSlicer(

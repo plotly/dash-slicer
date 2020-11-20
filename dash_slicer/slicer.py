@@ -72,6 +72,9 @@ class VolumeSlicer:
             raise ValueError("The given axis must be 0, 1, or 2.")
         self._axis = int(axis)
         self._reverse_y = bool(reverse_y)
+        # Select the *other* axii
+        self._other_axii = [0, 1, 2]
+        self._other_axii.pop(self._axis)
 
         # Check and store scene id, and generate
         if scene_id is None:
@@ -192,19 +195,21 @@ class VolumeSlicer:
 
         return overlay_slices
 
-    def _subid(self, name, use_dict=False):
+    def _subid(self, name, use_dict=False, **kwargs):
         """Given a name, get the full id including the context id prefix."""
         if use_dict:
             # A dict-id is nice to query objects with pattern matching callbacks,
             # and we use that to show the position of other sliders. But it makes
             # the id's very long, which is annoying e.g. in the callback graph.
-            return {
+            d = {
                 "context": self._context_id,
                 "scene": self._scene_id,
-                "axis": self._axis,
                 "name": name,
             }
+            d.update(kwargs)
+            return d
         else:
+            assert not kwargs
             return self._context_id + "-" + name
 
     def _slice(self, index):
@@ -230,7 +235,7 @@ class VolumeSlicer:
         self._fig = fig = Figure(data=[])
         fig.update_layout(
             template=None,
-            margin=dict(l=0, r=0, b=0, t=0, pad=4),
+            margin={"l": 0, "r": 0, "b": 0, "t": 0, "pad": 4},
         )
         fig.update_xaxes(
             showgrid=False,
@@ -265,7 +270,10 @@ class VolumeSlicer:
 
         # Create the stores that we need (these must be present in the layout)
         self._info = Store(id=self._subid("info"), data=info)
-        self._position = Store(id=self._subid("position", True), data=0)
+        self._position = Store(
+            id=self._subid("position", True, axis=self._axis), data=0
+        )
+        self._setpos = Store(id=self._subid("setpos", True), data=None)
         self._requested_index = Store(id=self._subid("req-index"), data=0)
         self._request_data = Store(id=self._subid("req-data"), data="")
         self._lowres_data = Store(id=self._subid("lowres"), data=thumbnails)
@@ -275,6 +283,7 @@ class VolumeSlicer:
         self._stores = [
             self._info,
             self._position,
+            self._setpos,
             self._requested_index,
             self._request_data,
             self._lowres_data,
@@ -300,6 +309,56 @@ class VolumeSlicer:
         app = self._app
 
         # ----------------------------------------------------------------------
+        # Callback to trigger fellow slicers to go to a specific position.
+
+        app.clientside_callback(
+            """
+        function trigger_setpos(data, index, info) {
+            if (data && data.points && data.points.length) {
+                let point = data["points"][0];
+                let xyz = [point["x"], point["y"]];
+                let depth = info.origin[2] + index * info.spacing[2];
+                xyz.splice(2 - info.axis, 0, depth);
+                return xyz;
+            }
+            return dash_clientside.no_update;
+        }
+        """,
+            Output(self._setpos.id, "data"),
+            [Input(self._graph.id, "clickData")],
+            [State(self._slider.id, "value"), State(self._info.id, "data")],
+        )
+
+        # ----------------------------------------------------------------------
+        # Callback to update index from external signal.
+
+        app.clientside_callback(
+            """
+        function respond_to_setpos(indices, info) {
+            for (let trigger of dash_clientside.callback_context.triggered) {
+                if (!trigger.value) continue;
+                let pos = trigger.value[2 - info.axis];
+                let index = Math.round((pos - info.origin[2]) / info.spacing[2]);
+                return Math.max(0, Math.min(info.size[2] - 1, index));
+            }
+            return dash_clientside.no_update;
+        }
+        """,
+            Output(self._slider.id, "value"),
+            [
+                Input(
+                    {
+                        "scene": self._scene_id,
+                        "context": ALL,
+                        "name": "setpos",
+                    },
+                    "data",
+                )
+            ],
+            [State(self._info.id, "data")],
+        )
+
+        # ----------------------------------------------------------------------
         # Callback to update position (in scene coordinates) from the index.
 
         app.clientside_callback(
@@ -309,7 +368,7 @@ class VolumeSlicer:
         }
         """,
             Output(self._position.id, "data"),
-            [Input(self.slider.id, "value")],
+            [Input(self._slider.id, "value")],
             [State(self._info.id, "data")],
         )
 
@@ -331,7 +390,7 @@ class VolumeSlicer:
             if (slice_cache[index]) {
                 return window.dash_clientside.no_update;
             } else {
-                console.log('request slice ' + index);
+                console.log('requesting slice ' + index);
                 return index;
             }
         }
@@ -416,10 +475,6 @@ class VolumeSlicer:
         # ----------------------------------------------------------------------
         # Callback to create scatter traces from the positions of other slicers.
 
-        # Select the *other* axii
-        axii = [0, 1, 2]
-        axii.pop(self._axis)
-
         # Create a callback to create a trace representing all slice-indices that:
         # * corresponding to the same volume data
         # * match any of the selected axii
@@ -464,7 +519,7 @@ class VolumeSlicer:
                     },
                     "data",
                 )
-                for axis in axii
+                for axis in self._other_axii
             ],
             [
                 State(self._info.id, "data"),
