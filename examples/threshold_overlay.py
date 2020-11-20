@@ -40,7 +40,6 @@ app.layout = html.Div(
             max=vol.max(),
             step=1,
             value=[mi + 0.1 * (ma - mi), mi + 0.3 * (ma - mi)],
-            updatemode="drag",
         ),
         *slicer.stores,
     ]
