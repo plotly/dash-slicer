@@ -343,12 +343,13 @@ class VolumeSlicer:
 
         app.clientside_callback(
             """
-        function respond_to_setpos(indices, info) {
+        function respond_to_setpos(indices, cur_index, info) {
             for (let trigger of dash_clientside.callback_context.triggered) {
                 if (!trigger.value) continue;
                 let pos = trigger.value[2 - info.axis];
                 if (typeof pos !== 'number') continue;
                 let index = Math.round((pos - info.origin[2]) / info.spacing[2]);
+                if (index == cur_index) continue;
                 return Math.max(0, Math.min(info.size[2] - 1, index));
             }
             return dash_clientside.no_update;
@@ -365,7 +366,7 @@ class VolumeSlicer:
                     "data",
                 )
             ],
-            [State(self._info.id, "data")],
+            [State(self._slider.id, "value"), State(self._info.id, "data")],
         )
 
         # ----------------------------------------------------------------------
