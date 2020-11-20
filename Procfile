@@ -1,1 +1,1 @@
-web: gunicorn test_deploy.app:server
+web: gunicorn examples.threshold_overlay:server
