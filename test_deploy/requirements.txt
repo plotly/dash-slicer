@@ -5,3 +5,4 @@ dash
 dash_core_components
 imageio
 gunicorn
+scikit-image
