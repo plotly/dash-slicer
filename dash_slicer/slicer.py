@@ -245,6 +245,7 @@ class VolumeSlicer:
         fig.update_layout(
             template=None,
             margin={"l": 0, "r": 0, "b": 0, "t": 0, "pad": 4},
+            dragmode="pan",  # user navigates by panning
         )
         fig.update_xaxes(
             showgrid=False,
@@ -282,7 +283,10 @@ class VolumeSlicer:
         self._position = Store(
             id=self._subid("position", True, axis=self._axis), data=0
         )
-        self._setpos = Store(id=self._subid("setpos", True), data=None)
+        self._setpos = Store(id=self._subid("setpos", True, foo=1), data=None)
+        self._setpos2 = Store(
+            id=self._subid("setpos", True, foo=2), data=None
+        )  # temporary to have both click and pan working
         self._requested_index = Store(id=self._subid("req-index"), data=0)
         self._request_data = Store(id=self._subid("req-data"), data="")
         self._lowres_data = Store(id=self._subid("lowres"), data=thumbnails)
@@ -293,6 +297,7 @@ class VolumeSlicer:
             self._info,
             self._position,
             self._setpos,
+            self._setpos2,
             self._requested_index,
             self._request_data,
             self._lowres_data,
@@ -339,11 +344,38 @@ class VolumeSlicer:
         )
 
         # ----------------------------------------------------------------------
-        # Callback to update index from external signal.
+        # xxxxxxxxxxxxxxxxxxxxxxxx
 
         app.clientside_callback(
             """
-        function respond_to_setpos(indices, cur_index, info) {
+        function handle_panzoom(data, index, figure, info) {
+            if (data && !data['xaxis.range[0]'] && !data['yaxis.range[0]']) return dash_clientside.no_update;
+            let xrange = figure.layout.xaxis.range;
+            let yrange = figure.layout.yaxis.range;
+            if (!xrange || !yrange) return dash_clientside.no_update;
+            window.figure = figure;
+            let xyz = [(xrange[0] + xrange[1])/2, (yrange[0] + yrange[1])/2];
+            let depth = info.origin[2] + index * info.spacing[2];
+            xyz.splice(2 - info.axis, 0, depth);
+            return xyz;
+            //return dash_clientside.no_update;
+        }
+        """,
+            Output(self._setpos2.id, "data"),
+            [Input(self._graph.id, "relayoutData")],
+            [
+                State(self._slider.id, "value"),
+                State(self.graph.id, "figure"),
+                State(self._info.id, "data"),
+            ],
+        )
+
+        # ----------------------------------------------------------------------
+        # Callback to update index from external setpos signal.
+
+        app.clientside_callback(
+            """
+        function respond_to_setpos(positions, cur_index, info) {
             for (let trigger of dash_clientside.callback_context.triggered) {
                 if (!trigger.value) continue;
                 let pos = trigger.value[2 - info.axis];
@@ -361,6 +393,7 @@ class VolumeSlicer:
                     {
                         "scene": self._scene_id,
                         "context": ALL,
+                        "foo": ALL,  # todo: remove this temp thingy
                         "name": "setpos",
                     },
                     "data",
@@ -550,10 +583,33 @@ class VolumeSlicer:
             for (let trace of img_traces) { traces.push(trace); }
             for (let trace of indicators) { traces.push(trace); }
 
+            let crosshair1 = {
+                type:'line',
+                line: {color:'yellow', width:1},
+                xref: 'paper',
+                yref: 'paper',
+                x0: 0.475,
+                x1: 0.525,
+                y0: 0.5,
+                y1: 0.5
+            };
+            let crosshair2 = {
+                type:'line',
+                line: {color:'yellow', width:1},
+                xref: 'paper',
+                yref: 'paper',
+                x0: 0.5,
+                x1: 0.5,
+                y0: 0.475,
+                y1: 0.525
+            };
+
             // Update figure
             console.log("updating figure");
             let figure = {...ori_figure};
             figure.data = traces;
+            figure.layout.shapes = [crosshair1, crosshair2];
+
             return figure;
         }
         """,
