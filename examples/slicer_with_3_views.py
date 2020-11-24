@@ -12,6 +12,7 @@ from skimage.measure import marching_cubes
 import imageio
 
 app = dash.Dash(__name__)
+server = app.server
 
 # Read volumes and create slicer objects
 vol = imageio.volread("imageio:stent.npz")

@@ -1,7 +1,9 @@
 """
 Bring your own slider ... or dropdown. This example shows how to use a
-different input element for the slice index. The slider's value is used
-as an output, but the slider element itself is hidden.
+different input element for the slice position. A store is created with
+certain predefined elements. The value set to this store is an xyz
+position in scene coordinates. None can be used to ignore certain
+dimensions. The slider element itself is hidden.
 """
 
 import dash
@@ -17,6 +19,10 @@ app = dash.Dash(__name__)
 vol = imageio.volread("imageio:stent.npz")
 slicer = VolumeSlicer(app, vol)
 
+setpos_store = dcc.Store(
+    id={"context": "app", "scene": slicer.scene_id, "name": "setpos"}
+)
+
 dropdown = dcc.Dropdown(
     id="dropdown",
     options=[{"label": f"slice {i}", "value": i} for i in range(0, vol.shape[0], 10)],
@@ -30,17 +36,18 @@ app.layout = html.Div(
         slicer.graph,
         dropdown,
         html.Div(slicer.slider, style={"display": "none"}),
+        setpos_store,
         *slicer.stores,
     ]
 )
 
 
 @app.callback(
-    Output(slicer.slider.id, "value"),
+    Output(setpos_store.id, "data"),
     [Input(dropdown.id, "value")],
 )
 def handle_dropdown_input(index):
-    return index
+    return None, None, index  # xyz in scene coords
 
 
 if __name__ == "__main__":
