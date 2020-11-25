@@ -11,7 +11,7 @@ import imageio
 from dash_slicer.utils import img_array_to_uri
 
 
-app = dash.Dash(__name__)
+app = dash.Dash(__name__, update_title=None)
 server = app.server
 
 # Read volumes and create slicer objects
