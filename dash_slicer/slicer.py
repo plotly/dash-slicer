@@ -7,6 +7,9 @@ from dash_core_components import Graph, Slider, Store
 from .utils import img_array_to_uri, get_thumbnail_size, shape3d_to_size2d
 
 
+_assigned_scene_ids = {}  # id(volume) -> str
+
+
 class VolumeSlicer:
     """A slicer to show 3D image data in Dash.
 
@@ -87,7 +90,8 @@ class VolumeSlicer:
 
         # Check and store scene id, and generate
         if scene_id is None:
-            scene_id = "volume_" + hex(id(volume))[2:]
+            n = len(_assigned_scene_ids)
+            scene_id = _assigned_scene_ids.setdefault(id(volume), f"vol{n}")
         elif not isinstance(scene_id, str):
             raise TypeError("scene_id must be a string")
         self._scene_id = scene_id
