@@ -26,6 +26,7 @@ class VolumeSlicer:
       reverse_y (bool): Whether to reverse the y-axis, so that the origin of
         the slice is in the top-left, rather than bottom-left. Default True.
         (This sets the figure's yaxes ``autorange`` to "reversed" or True.)
+        Note: setting this to False affects performance, see #12.
       scene_id (str): the scene that this slicer is part of. Slicers
         that have the same scene-id show each-other's positions with
         line indicators. By default this is derived from ``id(volume)``.
