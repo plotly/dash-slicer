@@ -350,6 +350,19 @@ class VolumeSlicer:
             slice = img_array_to_uri(self._slice(slice_index))
             return {"index": slice_index, "slice": slice}
 
+    def _clientside_callback(self, code, *args):
+        """Helper function to define a clientside callback."""
+
+        slicer_state = """
+            if (!window._slicer_{{ID}}) window._slicer_{{ID}} = {};
+            let slicer_state = window._slicer_{{ID}};
+        """.replace(
+            "{{ID}}", self._context_id
+        )
+        code = code.replace("let slicer_state;", slicer_state)
+
+        return self._app.clientside_callback(code, *args)
+
     def _create_client_callbacks(self):
         """Create the callbacks that run client-side."""
 
@@ -367,12 +380,10 @@ class VolumeSlicer:
         #                                               /
         #                                             pos (external)
 
-        app = self._app
-
         # ----------------------------------------------------------------------
         # Callback to trigger fellow slicers to go to a specific position on click.
 
-        app.clientside_callback(
+        self._clientside_callback(
             """
         function update_setpos_from_click(data, index, info) {
             if (data && data.points && data.points.length) {
@@ -393,7 +404,7 @@ class VolumeSlicer:
         # ----------------------------------------------------------------------
         # Callback to update slider based on external setpos signals.
 
-        app.clientside_callback(
+        self._clientside_callback(
             """
         function update_slider_value(positions, cur_index, info) {
             for (let trigger of dash_clientside.callback_context.triggered) {
@@ -424,11 +435,11 @@ class VolumeSlicer:
         # ----------------------------------------------------------------------
         # Callback to rate-limit the index (using a timer/interval).
 
-        app.clientside_callback(
+        self._clientside_callback(
             """
         function update_index_by_rate_limiting_the_slider_value(index, n_intervals, interval) {
-            if (!window._slicer_{{ID}}) window._slicer_{{ID}} = {};
-            let slicer_info = window._slicer_{{ID}};
+
+            let slicer_state;  // filled in
             let now = window.performance.now();
 
             // Get whether the slider was moved
@@ -442,10 +453,10 @@ class VolumeSlicer:
             let disable_timer = false;
 
             // If the slider moved, remember the time when this happened
-            slicer_info.new_time = slicer_info.new_time || 0;
+            slicer_state.new_time = slicer_state.new_time || 0;
 
             if (slider_was_moved) {
-                slicer_info.new_time = now;
+                slicer_state.new_time = now;
             } else if (!n_intervals) {
                 disable_timer = true;  // start disabled
             }
@@ -455,28 +466,20 @@ class VolumeSlicer:
             // changing. The former makes the indicators come along while
             // dragging the slider, the latter is better for a smooth
             // experience, and the interval can be set much lower.
-            if (index != slicer_info.req_index) {
-                if (now - slicer_info.new_time >= interval * 2) {
-                    req_index = slicer_info.req_index = index;
+            if (index != slicer_state.req_index) {
+                if (now - slicer_state.new_time >= interval * 2) {
+                    req_index = slicer_state.req_index = index;
                     disable_timer = true;
-
-                    // Get cache
-                    // todo: _index is now our rate-limited index, so we need to always apply
-                    //if (!window.slicecache_for_{{ID}}) { window.slicecache_for_{{ID}} = {}; }
-                    //let slice_cache = window.slicecache_for_{{ID}};
-                    //if (slice_cache[req_index]) {
-                    //    req_index = dash_clientside.no_update;
-                    //} else {
-                        console.log('requesting slice ' + req_index);
-                    //}
+                    console.log('requesting slice ' + req_index);
+                    // If we want to re-enable the cache, we'd need an extra store
+                    // that we set here too, and which we do *not* set if req_index
+                    // is already in thec cache.
                 }
             }
 
             return [req_index, disable_timer];
         }
-        """.replace(
-                "{{ID}}", self._context_id
-            ),
+        """,
             [
                 Output(self._index.id, "data"),
                 Output(self._timer.id, "disabled"),
@@ -488,14 +491,12 @@ class VolumeSlicer:
         # ----------------------------------------------------------------------
         # Callback to update position (in scene coordinates) from the index.
 
-        app.clientside_callback(
+        self._clientside_callback(
             """
         function update_pos(index, info) {
             return info.origin[2] + index * info.spacing[2];
         }
-        """.replace(
-                "{{ID}}", self._context_id
-            ),
+        """,
             Output(self._pos.id, "data"),
             [Input(self._index.id, "data")],
             [State(self._info.id, "data")],
@@ -504,19 +505,21 @@ class VolumeSlicer:
         # ----------------------------------------------------------------------
         # Callback that creates a list of image traces (slice and overlay).
 
-        app.clientside_callback(
+        self._clientside_callback(
             """
         function update_image_traces(index, server_data, overlays, lowres, info, current_traces) {
 
+
             // Add data to the cache if the data is indeed new
-            if (!window.slicecache_for_{{ID}}) { window.slicecache_for_{{ID}} = {}; }
-            let slice_cache = window.slicecache_for_{{ID}};
-            for (let trigger of dash_clientside.callback_context.triggered) {
-                if (trigger.prop_id.indexOf('server-data') >= 0) {
-                    slice_cache[server_data.index] = server_data;
-                    break;
-                }
-            }
+            let slicer_state;  // filled in
+            slicer_state.cache = slicer_state.cache || {};
+            // Cache is disabled for now ...
+            //for (let trigger of dash_clientside.callback_context.triggered) {
+            //    if (trigger.prop_id.indexOf('server-data') >= 0) {
+            //        slicer_state.cache[server_data.index] = server_data;
+            //        break;
+            //    }
+            //}
 
             // Prepare traces
             let slice_trace = {
@@ -534,9 +537,11 @@ class VolumeSlicer:
             let new_traces = [slice_trace, overlay_trace];
 
             // Depending on the state of the cache, use full data, or use lowres and request slice
-            if (slice_cache[index]) {
-                let cached = slice_cache[index];
+            if (slicer_state.cache[index]) {
+                let cached = slicer_state.cache[index];
                 slice_trace.source = cached.slice;
+            } else if (index == server_data.index) {
+                slice_trace.source = server_data.slice;
             } else {
                 slice_trace.source = lowres[index];
                 // Scale the image to take the exact same space as the full-res
@@ -578,7 +583,7 @@ class VolumeSlicer:
         # * corresponding to the same volume data
         # * match any of the selected axii
 
-        app.clientside_callback(
+        self._clientside_callback(
             """
         function update_indicator_traces(positions1, positions2, info, current) {
             let x0 = info.origin[0], y0 = info.origin[1];
@@ -630,7 +635,7 @@ class VolumeSlicer:
         # ----------------------------------------------------------------------
         # Callback that composes a figure from multiple trace sources.
 
-        app.clientside_callback(
+        self._clientside_callback(
             """
         function update_figure(img_traces, indicators, ori_figure) {
 
