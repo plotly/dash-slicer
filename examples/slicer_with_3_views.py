@@ -11,7 +11,7 @@ from dash_slicer import VolumeSlicer
 from skimage.measure import marching_cubes
 import imageio
 
-app = dash.Dash(__name__)
+app = dash.Dash(__name__, update_title=None)
 server = app.server
 
 # Read volumes and create slicer objects
