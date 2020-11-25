@@ -2,7 +2,7 @@ import numpy as np
 from plotly.graph_objects import Figure
 from dash import Dash
 from dash.dependencies import Input, Output, State, ALL
-from dash_core_components import Graph, Slider, Store
+from dash_core_components import Graph, Slider, Store, Interval
 
 from .utils import img_array_to_uri, get_thumbnail_size, shape3d_to_size2d
 
@@ -298,6 +298,9 @@ class VolumeSlicer:
         self._overlay_data = Store(id=self._subid("overlay"), data=[])
         self._img_traces = Store(id=self._subid("img-traces"), data=[])
         self._indicator_traces = Store(id=self._subid("indicator-traces"), data=[])
+        self._interval = Interval(
+            id=self._subid("interval"), interval=100, disabled=True
+        )
         self._stores = [
             self._info,
             self._position,
@@ -308,6 +311,7 @@ class VolumeSlicer:
             self._overlay_data,
             self._img_traces,
             self._indicator_traces,
+            self._interval,
         ]
 
     def _create_server_callbacks(self):
@@ -386,9 +390,11 @@ class VolumeSlicer:
         function update_position(index, info) {
             return info.origin[2] + index * info.spacing[2];
         }
-        """,
+        """.replace(
+                "{{ID}}", self._context_id
+            ),
             Output(self._position.id, "data"),
-            [Input(self._slider.id, "value")],
+            [Input(self._requested_index.id, "data")],
             [State(self._info.id, "data")],
         )
 
@@ -399,26 +405,61 @@ class VolumeSlicer:
 
         app.clientside_callback(
             """
-        function update_request(index) {
+        function rate_limit_index(index, _, interval) {
+            if (!window._slicer_{{ID}}) window._slicer_{{ID}} = {};
+            let slicer_info = window._slicer_{{ID}};
+            let now = window.performance.now();
 
-            // Clear the cache?
-            if (!window.slicecache_for_{{ID}}) { window.slicecache_for_{{ID}} = {}; }
-            let slice_cache = window.slicecache_for_{{ID}};
-
-            // Request a new slice (or not)
-            let request_index = index;
-            if (slice_cache[index]) {
-                return window.dash_clientside.no_update;
-            } else {
-                console.log('requesting slice ' + index);
-                return index;
+            // Get whether the slider was moved
+            let slider_was_moved = false;
+            for (let trigger of dash_clientside.callback_context.triggered) {
+                if (trigger.prop_id.indexOf('slider') >= 0) slider_was_moved = true;
             }
+
+            // Initialize return values
+            let req_index = dash_clientside.no_update;
+            let disable_interval = false;
+
+            // If the slider moved, remember the time when this happened
+            slicer_info.new_time = slicer_info.new_time || 0;
+
+            if (slider_was_moved) {
+                slicer_info.new_time = now;
+            }
+
+            // We can either update the rate-limited index interval ms after
+            // the real index changed, or interval ms after it stopped
+            // changing. The former makes the indicators come along while
+            // dragging the slider, the latter is better for a smooth
+            // experience, and the interval can be set much lower.
+            if (index != slicer_info.req_index) {
+                if (now - slicer_info.new_time >= interval) {
+                    req_index = slicer_info.req_index = index;
+                    disable_interval = true;
+
+                    // Get cache
+                    // todo: _requested_index is now our rate-limited index, so we need to always apply
+                    //if (!window.slicecache_for_{{ID}}) { window.slicecache_for_{{ID}} = {}; }
+                    //let slice_cache = window.slicecache_for_{{ID}};
+                    //if (slice_cache[req_index]) {
+                    //    req_index = dash_clientside.no_update;
+                    //} else {
+                        console.log('requesting slice ' + req_index);
+                    //}
+                }
+            }
+
+            return [req_index, disable_interval];
         }
         """.replace(
                 "{{ID}}", self._context_id
             ),
-            Output(self._requested_index.id, "data"),
-            [Input(self.slider.id, "value")],
+            [
+                Output(self._requested_index.id, "data"),
+                Output(self._interval.id, "disabled"),
+            ],
+            [Input(self._slider.id, "value"), Input(self._interval.id, "n_intervals")],
+            [State(self._interval.id, "interval")],
         )
 
         # ----------------------------------------------------------------------
@@ -481,7 +522,7 @@ class VolumeSlicer:
             ),
             Output(self._img_traces.id, "data"),
             [
-                Input(self.slider.id, "value"),
+                Input(self._slider.id, "value"),
                 Input(self._request_data.id, "data"),
                 Input(self._overlay_data.id, "data"),
             ],
