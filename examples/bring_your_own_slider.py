@@ -14,7 +14,7 @@ from dash_slicer import VolumeSlicer
 import imageio
 
 
-app = dash.Dash(__name__)
+app = dash.Dash(__name__, update_title=None)
 
 vol = imageio.volread("imageio:stent.npz")
 slicer = VolumeSlicer(app, vol)

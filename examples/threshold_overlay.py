@@ -15,7 +15,7 @@ import numpy as np
 import imageio
 
 
-app = dash.Dash(__name__)
+app = dash.Dash(__name__, update_title=None)
 server = app.server
 
 vol = imageio.volread("imageio:stent.npz")
