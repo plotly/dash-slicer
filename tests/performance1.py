@@ -146,4 +146,5 @@ function update_figure(index, option, ori_figure, data_list, data_png) {
 
 
 if __name__ == "__main__":
-    app.run_server(debug=True)
+    # Note that the dev_tools_props_check negatively affects performance
+    app.run_server(debug=True, dev_tools_props_check=False)
