@@ -50,6 +50,10 @@ class VolumeSlicer:
 
     The value in the store must be an 3-element tuple (x, y, z) in scene coordinates.
     To apply the position for one position only, use e.g ``(None, None, x)``.
+
+    Some notes on performance: for a smooth experience, create the `Dash`
+    application with `update_title=None`, and when running the server in debug
+    mode, consider setting `dev_tools_props_check=False`.
     """
 
     _global_slicer_counter = 0
