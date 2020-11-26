@@ -52,6 +52,7 @@ app.layout = html.Div(
         html.Br(),
         dcc.Graph(id="graph", figure=fig),
         dcc.Store(id="index", data=0),
+        dcc.Store(id="trace", data=None),
         dcc.Store(id="data_png", data=slices_png),
     ]
 )
@@ -72,7 +73,19 @@ function update_index(index) {
 
 app.clientside_callback(
     """
-function update_figure(index, ori_figure, data_png) {
+function update_trace(index, data_png) {
+    return {type: 'image', source: data_png[index]};
+}
+""",
+    Output("trace", "data"),
+    [Input("index", "data")],
+    [State("data_png", "data")],
+)
+
+
+app.clientside_callback(
+    """
+function update_figure(trace, ori_figure) {
 
     // Get FPS
     let fps_result = dash_clientside.no_update;
@@ -91,13 +104,11 @@ function update_figure(index, ori_figure, data_png) {
     let figure_result = dash_clientside.no_update;
 
     if (true) {
-        let trace = {type: 'image', source: data_png[index]};
         figure_result = {...ori_figure};
         figure_result.layout.yaxis.range = [128, 0];
         figure_result.data = [trace];
     } else {
         // unfavorable y-axis
-        let trace = {type: 'image', source: data_png[index]};
         figure_result = {...ori_figure};
         figure_result.layout.yaxis.range = [0, 128];
         figure_result.data = [trace];
@@ -106,17 +117,11 @@ function update_figure(index, ori_figure, data_png) {
 }
 """,
     [Output("graph", "figure"), Output("fps", "children")],
-    [
-        # Input("index", "data")],
-        Input("slider", "value")
-    ],
-    [
-        State("graph", "figure"),
-        State("data_png", "data"),
-    ],
+    [Input("trace", "data")],
+    [State("graph", "figure")],
 )
 
 
 if __name__ == "__main__":
-    # Note that debug mode negatively affects performance
-    app.run_server(debug=False)
+    # Note that the dev_tools_props_check negatively affects performance
+    app.run_server(debug=True, dev_tools_props_check=False)
