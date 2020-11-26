@@ -52,9 +52,13 @@ class VolumeSlicer:
     The value in the store must be an 3-element tuple (x, y, z) in scene coordinates.
     To apply the position for one position only, use e.g ``(None, None, x)``.
 
-    Some notes on performance: for a smooth experience, create the `Dash`
-    application with `update_title=None`, and when running the server in debug
-    mode, consider setting `dev_tools_props_check=False`.
+    Some notes on performance: for a smooth experience, avoid triggering
+    unnecessary figure updates. When adding a callback that uses the
+    slicer position, use the (rate limited) `index` and `pos` stores
+    rather than the slider value. Further, create the `Dash` application
+    with `update_title=None`, and when running the server in debug mode,
+    consider setting `dev_tools_props_check=False`.
+
     """
 
     _global_slicer_counter = 0
@@ -154,6 +158,20 @@ class VolumeSlicer:
         These must be added to the app layout.
         """
         return self._stores
+
+    @property
+    def index(self):
+        """A dcc.Store containing the integer slice number. This value
+        is a rate-limited version of the slider value.
+        """
+        return self._index
+
+    @property
+    def pos(self):
+        """A dcc.Store containing the float position in scene coordinates,
+        along the slice-axis.
+        """
+        return self._pos
 
     @property
     def overlay_data(self):
@@ -280,14 +298,16 @@ class VolumeSlicer:
         initial_pos = info["origin"][2] + initial_index * info["spacing"][2]
 
         # Create a slider object that the user can put in the layout (or not).
+        # Note that the tooltip introduces a measurable performance penalty,
+        # so maybe we can display it in a different way?
         self._slider = Slider(
             id=self._subid("slider"),
             min=0,
             max=info["size"][2] - 1,
             step=1,
             value=initial_index,
-            tooltip={"always_visible": False, "placement": "left"},
             updatemode="drag",
+            tooltip={"always_visible": False, "placement": "left"},
         )
 
         # Create the stores that we need (these must be present in the layout)
@@ -467,7 +487,7 @@ class VolumeSlicer:
             // dragging the slider, the latter is better for a smooth
             // experience, and the interval can be set much lower.
             if (index != slicer_state.req_index) {
-                if (now - slicer_state.new_time >= interval * 2) {
+                if (now - slicer_state.new_time >= interval) {
                     req_index = slicer_state.req_index = index;
                     disable_timer = true;
                     console.log('requesting slice ' + req_index);
