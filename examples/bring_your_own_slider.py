@@ -51,4 +51,5 @@ def handle_dropdown_input(index):
 
 
 if __name__ == "__main__":
-    app.run_server(debug=True)
+    # Note that debug mode negatively affects the performance of VolumeSlicer
+    app.run_server(debug=False)

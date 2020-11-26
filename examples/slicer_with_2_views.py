@@ -43,4 +43,5 @@ app.layout = html.Div(
 
 
 if __name__ == "__main__":
-    app.run_server(debug=True)
+    # Note that debug mode negatively affects the performance of VolumeSlicer
+    app.run_server(debug=False)
