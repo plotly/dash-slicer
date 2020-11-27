@@ -370,19 +370,6 @@ class VolumeSlicer:
             slice = img_array_to_uri(self._slice(slice_index))
             return {"index": slice_index, "slice": slice}
 
-    def _clientside_callback(self, code, *args):
-        """Helper function to define a clientside callback."""
-
-        slicer_state = """
-            if (!window._slicer_{{ID}}) window._slicer_{{ID}} = {};
-            let slicer_state = window._slicer_{{ID}};
-        """.replace(
-            "{{ID}}", self._context_id
-        )
-        code = code.replace("let slicer_state;", slicer_state)
-
-        return self._app.clientside_callback(code, *args)
-
     def _create_client_callbacks(self):
         """Create the callbacks that run client-side."""
 
@@ -400,10 +387,12 @@ class VolumeSlicer:
         #                                               /
         #                                             pos (external)
 
+        app = self._app
+
         # ----------------------------------------------------------------------
         # Callback to trigger fellow slicers to go to a specific position on click.
 
-        self._clientside_callback(
+        app.clientside_callback(
             """
         function update_setpos_from_click(data, index, info) {
             if (data && data.points && data.points.length) {
@@ -424,7 +413,7 @@ class VolumeSlicer:
         # ----------------------------------------------------------------------
         # Callback to update slider based on external setpos signals.
 
-        self._clientside_callback(
+        app.clientside_callback(
             """
         function update_slider_value(positions, cur_index, info) {
             for (let trigger of dash_clientside.callback_context.triggered) {
@@ -455,11 +444,12 @@ class VolumeSlicer:
         # ----------------------------------------------------------------------
         # Callback to rate-limit the index (using a timer/interval).
 
-        self._clientside_callback(
+        app.clientside_callback(
             """
         function update_index_rate_limiting(index, n_intervals, interval) {
 
-            let slicer_state;  // filled in
+            if (!window._slicer_{{ID}}) window._slicer_{{ID}} = {};
+            let slicer_state = window._slicer_{{ID}};
             let now = window.performance.now();
 
             // Get whether the slider was moved
@@ -496,7 +486,9 @@ class VolumeSlicer:
 
             return [req_index, disable_timer];
         }
-        """,
+        """.replace(
+                "{{ID}}", self._context_id
+            ),
             [
                 Output(self._index.id, "data"),
                 Output(self._timer.id, "disabled"),
@@ -508,7 +500,7 @@ class VolumeSlicer:
         # ----------------------------------------------------------------------
         # Callback to update position (in scene coordinates) from the index.
 
-        self._clientside_callback(
+        app.clientside_callback(
             """
         function update_pos(index, info) {
             return info.origin[2] + index * info.spacing[2];
@@ -522,7 +514,7 @@ class VolumeSlicer:
         # ----------------------------------------------------------------------
         # Callback that creates a list of image traces (slice and overlay).
 
-        self._clientside_callback(
+        app.clientside_callback(
             """
         function update_image_traces(index, server_data, overlays, lowres, info, current_traces) {
 
@@ -583,7 +575,7 @@ class VolumeSlicer:
         # ----------------------------------------------------------------------
         # Callback to create scatter traces from the positions of other slicers.
 
-        self._clientside_callback(
+        app.clientside_callback(
             """
         function update_indicator_traces(positions1, positions2, info, current) {
             let x0 = info.origin[0], y0 = info.origin[1];
@@ -635,7 +627,7 @@ class VolumeSlicer:
         # ----------------------------------------------------------------------
         # Callback that composes a figure from multiple trace sources.
 
-        self._clientside_callback(
+        app.clientside_callback(
             """
         function update_figure(img_traces, indicators, ori_figure) {
 
