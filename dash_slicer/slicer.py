@@ -457,7 +457,7 @@ class VolumeSlicer:
 
         self._clientside_callback(
             """
-        function update_index_by_rate_limiting_the_slider_value(index, n_intervals, interval) {
+        function update_index_rate_limiting(index, n_intervals, interval) {
 
             let slicer_state;  // filled in
             let now = window.performance.now();
@@ -491,9 +491,6 @@ class VolumeSlicer:
                     req_index = slicer_state.req_index = index;
                     disable_timer = true;
                     console.log('requesting slice ' + req_index);
-                    // If we want to re-enable the cache, we'd need an extra store
-                    // that we set here too, and which we do *not* set if req_index
-                    // is already in thec cache.
                 }
             }
 
@@ -529,18 +526,6 @@ class VolumeSlicer:
             """
         function update_image_traces(index, server_data, overlays, lowres, info, current_traces) {
 
-
-            // Add data to the cache if the data is indeed new
-            let slicer_state;  // filled in
-            slicer_state.cache = slicer_state.cache || {};
-            // Cache is disabled for now ...
-            //for (let trigger of dash_clientside.callback_context.triggered) {
-            //    if (trigger.prop_id.indexOf('server-data') >= 0) {
-            //        slicer_state.cache[server_data.index] = server_data;
-            //        break;
-            //    }
-            //}
-
             // Prepare traces
             let slice_trace = {
                 type: 'image',
@@ -556,16 +541,14 @@ class VolumeSlicer:
             overlay_trace.hovertemplate = '';
             let new_traces = [slice_trace, overlay_trace];
 
-            // Depending on the state of the cache, use full data, or use lowres and request slice
-            if (slicer_state.cache[index]) {
-                let cached = slicer_state.cache[index];
-                slice_trace.source = cached.slice;
-            } else if (index == server_data.index) {
+            // Use full data, or use lowres
+            if (index == server_data.index) {
                 slice_trace.source = server_data.slice;
             } else {
                 slice_trace.source = lowres[index];
                 // Scale the image to take the exact same space as the full-res
-                // version. It's not correct, but it looks better ...
+                // version. Note that depending on how the low-res data is
+                // created, the pixel centers may not be correctly aligned.
                 slice_trace.dx *= info.size[0] / info.lowres_size[0];
                 slice_trace.dy *= info.size[1] / info.lowres_size[1];
                 slice_trace.x0 += 0.5 * slice_trace.dx - 0.5 * info.spacing[0];
@@ -577,7 +560,7 @@ class VolumeSlicer:
             if (new_traces[0].source == current_traces[0].source &&
                 new_traces[1].source == current_traces[1].source)
             {
-                new_traces = window.dash_clientside.no_update;
+                new_traces = dash_clientside.no_update;
             }
             return new_traces;
         }
@@ -599,9 +582,6 @@ class VolumeSlicer:
 
         # ----------------------------------------------------------------------
         # Callback to create scatter traces from the positions of other slicers.
-        # Creatse a trace representing all slice-indices that:
-        # * corresponding to the same volume data
-        # * match any of the selected axii
 
         self._clientside_callback(
             """
