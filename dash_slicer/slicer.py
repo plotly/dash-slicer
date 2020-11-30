@@ -30,6 +30,7 @@ class VolumeSlicer:
       scene_id (str): the scene that this slicer is part of. Slicers
         that have the same scene-id show each-other's positions with
         line indicators. By default this is derived from ``id(volume)``.
+      color (str): the color for this slicer.
 
     This is a placeholder object, not a Dash component. The components
     that make up the slicer can be accessed as attributes. These must all
@@ -73,6 +74,7 @@ class VolumeSlicer:
         axis=0,
         reverse_y=True,
         scene_id=None,
+        color=None,
     ):
 
         if not isinstance(app, Dash):
@@ -93,9 +95,6 @@ class VolumeSlicer:
             raise ValueError("The given axis must be 0, 1, or 2.")
         self._axis = int(axis)
         self._reverse_y = bool(reverse_y)
-        # Select the *other* axii
-        self._other_axii = [0, 1, 2]
-        self._other_axii.pop(self._axis)
 
         # Check and store scene id, and generate
         if scene_id is None:
@@ -116,6 +115,7 @@ class VolumeSlicer:
             "size": shape3d_to_size2d(volume.shape, axis),
             "origin": shape3d_to_size2d(origin, axis),
             "spacing": shape3d_to_size2d(spacing, axis),
+            "color": color or "#00ffff",
         }
 
         # Build the slicer
@@ -340,9 +340,7 @@ class VolumeSlicer:
 
         # The (float) position (in scene coords) of the current slice,
         # used to publish our position to slicers with the same scene_id.
-        self._pos = Store(
-            id=self._subid("pos", True, axis=self._axis), data=initial_pos
-        )
+        self._pos = Store(id=self._subid("pos", True), data=initial_pos)
 
         # Signal to set the position of other slicers with the same scene_id.
         self._setpos = Store(id=self._subid("setpos", True), data=None)
@@ -502,10 +500,17 @@ class VolumeSlicer:
         # ----------------------------------------------------------------------
         # Callback to update position (in scene coordinates) from the index.
 
+        # todo: replace index store with this info, drop the pos store
+        # todo: include info about axis range
         app.clientside_callback(
             """
         function update_pos(index, info) {
-            return info.origin[2] + index * info.spacing[2];
+            return {
+                index: index,
+                pos: info.origin[2] + index * info.spacing[2],
+                axis: info.axis,
+                color: info.color,
+            };
         }
         """,
             Output(self._pos.id, "data"),
@@ -579,32 +584,45 @@ class VolumeSlicer:
 
         app.clientside_callback(
             """
-        function update_indicator_traces(positions1, positions2, info, current) {
+        function update_indicator_traces(states, info) {
             let x0 = info.origin[0], y0 = info.origin[1];
             let x1 = x0 + info.size[0] * info.spacing[0], y1 = y0 + info.size[1] * info.spacing[1];
             x0 = x0 - info.spacing[0], y0 = y0 - info.spacing[1];
             let d = ((x1 - x0) + (y1 - y0)) * 0.5 * 0.05;
-            let version = (current.version || 0) + 1;
-            let x = [], y = [];
-            for (let pos of positions1) {
-                // x relative to our slice, y in scene-coords
-                x.push(...[x0 - d, x0, null, x1, x1 + d, null]);
-                y.push(...[pos, pos, pos, pos, pos, pos]);
+
+            let axii = [0, 1, 2];
+            axii.splice(info.axis, 1);
+            let traces = [];
+
+            for (let state of states) {
+                let pos = state.pos;
+                if (state.axis == axii[0]) {
+                    // x relative to our slice, y in scene-coords
+                    traces.push({
+                        //x: [x0 - d, x0, null, x1, x1 + d, null],
+                        x: [x0, x1],
+                        y: [pos, pos],
+                        line: {color: state.color, width: 1}
+                    });
+                } else if (state.axis == axii[1]) {
+                    // x in scene-coords, y relative to our slice
+                    traces.push({
+                        x: [pos, pos],
+                        y: [y0, y1],
+                        //y: [y0 - d, y0, null, y1, y1 + d, null],
+                        line: {color: state.color, width: 1}
+                    });
+                }
             }
-            for (let pos of positions2) {
-                // x in scene-coords, y relative to our slice
-                x.push(...[pos, pos, pos, pos, pos, pos]);
-                y.push(...[y0 - d, y0, null, y1, y1 + d, null]);
+
+            for (let trace of traces) {
+                trace.type = 'scatter';
+                trace.mode = 'lines';
+                trace.hoverinfo = 'skip';
+                trace.showlegend = false;
             }
-            return [{
-                type: 'scatter',
-                mode: 'lines',
-                line: {color: '#ff00aa'},
-                x: x,
-                y: y,
-                hoverinfo: 'skip',
-                version: version
-            }];
+
+            return traces;
         }
         """,
             Output(self._indicator_traces.id, "data"),
@@ -614,15 +632,12 @@ class VolumeSlicer:
                         "scene": self._scene_id,
                         "context": ALL,
                         "name": "pos",
-                        "axis": axis,
                     },
                     "data",
                 )
-                for axis in self._other_axii
             ],
             [
                 State(self._info.id, "data"),
-                State(self._indicator_traces.id, "data"),
             ],
         )
 
@@ -631,26 +646,42 @@ class VolumeSlicer:
 
         app.clientside_callback(
             """
-        function update_figure(img_traces, indicators, ori_figure) {
+        function update_figure(img_traces, indicators, ori_figure, info) {
 
             // Collect traces
             let traces = [];
             for (let trace of img_traces) { traces.push(trace); }
             for (let trace of indicators) { traces.push(trace); }
 
+            // Show our own color as a rectangle around the image,
+            // But only if there are multiple slicers with the same scene id.
+            let shapes = [];
+            if (indicators.length > 1) {
+                shapes.push({
+                    type: 'rect',
+                    //xref: 'paper', yref: 'paper', x0: 0, y0: 0, x1: 1, y1: 1,
+                    xref: 'x', yref: 'y',
+                    x0: info.origin[0] - info.spacing[0]/2, y0: info.origin[1] - info.spacing[1]/2,
+                    x1: info.origin[0] + (info.size[0] - 0.5) * info.spacing[0], y1: info.origin[1] + (info.size[1] - 0.5) * info.spacing[1],
+                    line: {color: info.color, width: 3}
+                });
+            }
+
             // Update figure
             let figure = {...ori_figure};
             figure.data = traces;
+            figure.layout.shapes = shapes;
 
             return figure;
         }
         """,
-            Output(self.graph.id, "figure"),
+            Output(self._graph.id, "figure"),
             [
                 Input(self._img_traces.id, "data"),
                 Input(self._indicator_traces.id, "data"),
             ],
             [
-                State(self.graph.id, "figure"),
+                State(self._graph.id, "figure"),
+                State(self._info.id, "data"),
             ],
         )
