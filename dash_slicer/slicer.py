@@ -330,7 +330,7 @@ class VolumeSlicer:
         # Store indicator traces for the slicer.
         self._indicator_traces = Store(id=self._subid("indicator-traces"), data=[])
 
-        # An timer to apply a rate-limit between slider.value and index.data
+        # A timer to apply a rate-limit between slider.value and index.data
         self._timer = Interval(id=self._subid("timer"), interval=100, disabled=True)
 
         # The (integer) index of the slice to show. This value is rate-limited
