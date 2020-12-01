@@ -259,6 +259,7 @@ class VolumeSlicer:
             showgrid=False,
             showticklabels=False,
             zeroline=False,
+            constrain="range",
         )
         fig.update_yaxes(
             showgrid=False,
@@ -266,6 +267,7 @@ class VolumeSlicer:
             showticklabels=False,
             zeroline=False,
             autorange="reversed" if self._reverse_y else True,
+            constrain="range",
         )
 
         # Create the graph (graph is a Dash component wrapping a Plotly figure)
