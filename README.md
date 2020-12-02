@@ -1,14 +1,23 @@
+![CI](https://github.com/pygfx/wgpu-py/workflows/CI/badge.svg)
+
 # dash_slicer
 
 A volume slicer for Dash
 
 
-The API is currently a WIP.
+## Status
+
+This work is marked as alpha - some essential features are still in
+development, and some parts of the API may change in future releases.
 
 
 ## Installation
 
-Eventually, this would be pip-installable. For now, use the developer workflow.
+```
+$ pip install dash-slicer
+```
+
+Dash-slicer depends on Python 3.6+ plus some [dependencies](requirements.txt).
 
 
 ## Usage example

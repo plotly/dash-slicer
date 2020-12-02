@@ -1,3 +1,11 @@
+"""
+Setup script to distribute dash-slicer.
+
+* clear your dist dir
+* python setup.py sdist bdist_wheel
+* twine upload dist/*
+"""
+
 import re
 
 from setuptools import find_packages, setup
@@ -23,11 +31,11 @@ setup(
     install_requires=runtime_deps,
     license="MIT",
     description=SUMMARY,
-    long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
+    long_description=open("README.md").read(),
     author="Plotly",
     author_email="almar.klein@gmail.com",
-    # url="https://github.com/plotly/will be renamed?",
+    url="https://github.com/plotly/dash-slicer",
     data_files=[("", ["LICENSE"])],
     zip_safe=True,  # not if we put JS in a seperate file, I think
     classifiers=[
@@ -37,5 +45,6 @@ setup(
         "Programming Language :: Python :: 3",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: Scientific/Engineering :: Visualization",
+        "Topic :: Software Development :: User Interfaces",
     ],
 )
