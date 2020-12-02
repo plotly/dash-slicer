@@ -656,17 +656,19 @@ class VolumeSlicer:
             // Show our own color as a rectangle around the image,
             // But only if there are multiple slicers with the same scene id.
             if (indicators.length > 1) {
-                let x0 = info.origin[0] - info.spacing[0]/2;
-                let y0 = info.origin[1] - info.spacing[1]/2;
-                let x1 = info.origin[0] + (info.size[0] - 0.5) * info.spacing[0];
-                let y1 = info.origin[1] + (info.size[1] - 0.5) * info.spacing[1];
+                let x1 = info.origin[0] - info.spacing[0]/2;
+                let y1 = info.origin[1] - info.spacing[1]/2;
+                let x4 = info.origin[0] + (info.size[0] - 0.5) * info.spacing[0];
+                let y4 = info.origin[1] + (info.size[1] - 0.5) * info.spacing[1];
+                let x2 = x1 + 0.25 * (x4 - x1), x3 = x1 + 0.75 * (x4 - x1);
+                let y2 = y1 + 0.25 * (y4 - y1), y3 = y1 + 0.75 * (y4 - y1);
                 traces.push({
                     type: 'scatter',
                     mode: 'lines',
                     hoverinfo: 'skip',
                     showlegend: false,
-                    x: [x0, x1, x1, x0, x0],
-                    y: [y0, y0, y1, y1, y0],
+                    x: [x1, x1, x2, null, x3, x4, x4, null, x4, x4, x3, null, x2, x1, x1],
+                    y: [y2, y1, y1, null, y1, y1, y2, null, y3, y4, y4, null, y4, y4, y3],
                     line: {color: info.color, width: 3}
                 });
             }
