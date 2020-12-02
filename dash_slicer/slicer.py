@@ -30,7 +30,9 @@ class VolumeSlicer:
       scene_id (str): the scene that this slicer is part of. Slicers
         that have the same scene-id show each-other's positions with
         line indicators. By default this is derived from ``id(volume)``.
-      color (str): the color for this slicer.
+      color (str): the color for this slicer. By default the color is
+        red, green, or blue, depending on the axis. Set to empty string
+        for "no color".
 
     This is a placeholder object, not a Dash component. The components
     that make up the slicer can be accessed as attributes. These must all
@@ -104,6 +106,10 @@ class VolumeSlicer:
             raise TypeError("scene_id must be a string")
         self._scene_id = scene_id
 
+        # Check color
+        if color is None:
+            color = ("red", "green", "blue")[self._axis]
+
         # Get unique id scoped to this slicer object
         VolumeSlicer._global_slicer_counter += 1
         self._context_id = "slicer" + str(VolumeSlicer._global_slicer_counter)
@@ -115,7 +121,7 @@ class VolumeSlicer:
             "size": shape3d_to_size2d(volume.shape, axis),
             "origin": shape3d_to_size2d(origin, axis),
             "spacing": shape3d_to_size2d(spacing, axis),
-            "color": color or "#00ffff",
+            "color": color,
         }
 
         # Build the slicer
@@ -651,11 +657,13 @@ class VolumeSlicer:
             // Collect traces
             let traces = [];
             for (let trace of img_traces) { traces.push(trace); }
-            for (let trace of indicators) { traces.push(trace); }
+            for (let trace of indicators) { if (trace.line.color) traces.push(trace); }
 
             // Show our own color as a rectangle around the image,
             // But only if there are multiple slicers with the same scene id.
-            if (indicators.length > 1) {
+
+            console.log(indicators.length)
+            if (indicators.length > 0 && info.color) {
                 let x1 = info.origin[0] - info.spacing[0]/2;
                 let y1 = info.origin[1] - info.spacing[1]/2;
                 let x4 = info.origin[0] + (info.size[0] - 0.5) * info.spacing[0];
