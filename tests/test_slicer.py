@@ -28,7 +28,7 @@ def test_slicer_init():
     assert isinstance(s.graph, dcc.Graph)
     assert isinstance(s.slider, dcc.Slider)
     assert isinstance(s.stores, list)
-    assert all(isinstance(store, dcc.Store) for store in s.stores)
+    assert all(isinstance(store, (dcc.Store, dcc.Interval)) for store in s.stores)
 
 
 def test_scene_id_and_context_id():

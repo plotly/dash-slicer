@@ -19,7 +19,7 @@ from dash_slicer import VolumeSlicer
 import imageio
 
 
-app = dash.Dash(__name__)
+app = dash.Dash(__name__, update_title=None)
 
 vol1 = imageio.volread("imageio:stent.npz")
 
@@ -28,14 +28,10 @@ spacing = 3, 2, 1
 ori = 1000, 2000, 3000
 
 
-slicer1 = VolumeSlicer(
-    app, vol1, axis=1, origin=ori, reverse_y=False, scene_id="scene1"
-)
-slicer2 = VolumeSlicer(
-    app, vol1, axis=0, origin=ori, reverse_y=False, scene_id="scene1"
-)
+slicer1 = VolumeSlicer(app, vol1, axis=1, origin=ori, scene_id="scene1")
+slicer2 = VolumeSlicer(app, vol1, axis=0, origin=ori, scene_id="scene1")
 slicer3 = VolumeSlicer(
-    app, vol2, axis=0, origin=ori, spacing=spacing, reverse_y=False, scene_id="scene1"
+    app, vol2, axis=0, origin=ori, spacing=spacing, scene_id="scene1"
 )
 
 app.layout = html.Div(
