@@ -655,14 +655,18 @@ class VolumeSlicer:
 
             // Show our own color as a rectangle around the image,
             // But only if there are multiple slicers with the same scene id.
-            let shapes = [];
             if (indicators.length > 1) {
-                shapes.push({
-                    type: 'rect',
-                    //xref: 'paper', yref: 'paper', x0: 0, y0: 0, x1: 1, y1: 1,
-                    xref: 'x', yref: 'y',
-                    x0: info.origin[0] - info.spacing[0]/2, y0: info.origin[1] - info.spacing[1]/2,
-                    x1: info.origin[0] + (info.size[0] - 0.5) * info.spacing[0], y1: info.origin[1] + (info.size[1] - 0.5) * info.spacing[1],
+                let x0 = info.origin[0] - info.spacing[0]/2;
+                let y0 = info.origin[1] - info.spacing[1]/2;
+                let x1 = info.origin[0] + (info.size[0] - 0.5) * info.spacing[0];
+                let y1 = info.origin[1] + (info.size[1] - 0.5) * info.spacing[1];
+                traces.push({
+                    type: 'scatter',
+                    mode: 'lines',
+                    hoverinfo: 'skip',
+                    showlegend: false,
+                    x: [x0, x1, x1, x0, x0],
+                    y: [y0, y0, y1, y1, y0],
                     line: {color: info.color, width: 3}
                 });
             }
@@ -670,8 +674,6 @@ class VolumeSlicer:
             // Update figure
             let figure = {...ori_figure};
             figure.data = traces;
-            figure.layout.shapes = shapes;
-
             return figure;
         }
         """,
