@@ -47,7 +47,7 @@ app.layout = html.Div(
 
 
 # Define colormap to make the lower threshold shown in yellow, and higher in red
-colormap = [(0, 0, 0, 0), (255, 255, 0, 50), (255, 0, 0, 100)]
+colormap = [(255, 255, 0, 50), (255, 0, 0, 100)]
 
 
 @app.callback(

@@ -1,11 +1,14 @@
 import numpy as np
-from plotly.graph_objects import Figure
-from dash import Dash
+import plotly
+import dash
 from dash.dependencies import Input, Output, State, ALL
 from dash_core_components import Graph, Slider, Store, Interval
 
 from .utils import img_array_to_uri, get_thumbnail_size, shape3d_to_size2d
 
+
+# The default colors to use for indicators and overlays
+discrete_colors = plotly.colors.qualitative.D3
 
 _assigned_scene_ids = {}  # id(volume) -> str
 
@@ -39,7 +42,7 @@ class VolumeSlicer:
     be present in the app layout:
 
     * ``graph``: the dcc.Graph object. Use ``graph.figure`` to access the
-      Plotly figure object.
+      Plotly Figure object.
     * ``slider``: the dcc.Slider object, its value represents the slice
       index. If you don't want to use the slider, wrap it in a div with
       style ``display: none``.
@@ -79,7 +82,7 @@ class VolumeSlicer:
         color=None,
     ):
 
-        if not isinstance(app, Dash):
+        if not isinstance(app, dash.Dash):
             raise TypeError("Expect first arg to be a Dash app.")
         self._app = app
 
@@ -108,7 +111,7 @@ class VolumeSlicer:
 
         # Check color
         if color is None:
-            color = ("red", "green", "blue")[self._axis]
+            color = discrete_colors[self._axis]
 
         # Get unique id scoped to this slicer object
         VolumeSlicer._global_slicer_counter += 1
@@ -185,9 +188,11 @@ class VolumeSlicer:
         """
         return self._overlay_data
 
-    def create_overlay_data(self, mask, color=(0, 255, 255, 100)):
+    def create_overlay_data(self, mask, color=None):
         """Given a 3D mask array and an index, create an object that
-        can be used as output for ``slicer.overlay_data``.
+        can be used as output for ``slicer.overlay_data``. The color
+        can be an rgb/rgba tuple, or a hex color. Alternatively, color
+        can be a list of such colors, defining a colormap.
         """
         # Check the mask
         if mask.dtype not in (np.bool, np.uint8):
@@ -199,19 +204,34 @@ class VolumeSlicer:
         mask = mask.astype(np.uint8, copy=False)  # need int to index
 
         # Create a colormap (list) from the given color(s)
-        color = np.array(color, np.uint8)
-        if color.ndim == 1:
-            if color.shape[0] != 4:
-                raise ValueError("Overlay color must be 4 ints (0..255).")
-            colormap = [(0, 0, 0, 0), tuple(color)]
-        elif color.ndim == 2:
-            if color.shape[1] != 4:
-                raise ValueError("Overlay colors must be 4 ints (0..255).")
-            colormap = [tuple(x) for x in color]
+        if color is None:
+            colormap = discrete_colors[3:]
+        elif isinstance(color, (tuple, list)) and all(
+            isinstance(x, (int, float)) for x in color
+        ):
+            colormap = [color]
         else:
-            raise ValueError(
-                "Overlay color must be a single color or a list of colors."
-            )
+            colormap = list(color)
+
+        # Normalize the colormap so each element is a 4-element tuple
+        for i in range(len(colormap)):
+            c = colormap[i]
+            if isinstance(c, str):
+                if c.startswith("#"):
+                    c = plotly.colors.hex_to_rgb(c)
+                else:
+                    raise ValueError(
+                        "Named colors are not (yet) supported, hex colors are."
+                    )
+            c = tuple(int(x) for x in c)
+            if len(c) == 3:
+                c = c + (100,)
+            elif len(c) != 4:
+                raise ValueError("Expected color tuples to be 3 or 4 elements.")
+            colormap[i] = c
+
+        # Insert zero stub color for where mask is zero
+        colormap.insert(0, (0, 0, 0, 0))
 
         # Produce slices (base64 png strings)
         overlay_slices = []
@@ -271,7 +291,7 @@ class VolumeSlicer:
         info["lowres_size"] = thumbnail_size
 
         # Create the figure object - can be accessed by user via slicer.graph.figure
-        self._fig = fig = Figure(data=[])
+        self._fig = fig = plotly.graph_objects.Figure(data=[])
         fig.update_layout(
             template=None,
             margin={"l": 0, "r": 0, "b": 0, "t": 0, "pad": 4},
@@ -649,13 +669,20 @@ class VolumeSlicer:
 
             // Show our own color as a rectangle around the image, but only if
             // there are other slicers with the same scene id, on a different axis.
+            // We do some math to make sure that these indicators are the same
+            // size (in scene coordinates) for all slicers of the same data.
             if (indicators.length > 0 && info.color) {
-                let x1 = info.origin[0] - info.spacing[0]/2;
-                let y1 = info.origin[1] - info.spacing[1]/2;
-                let x4 = info.origin[0] + (info.size[0] - 0.5) * info.spacing[0];
-                let y4 = info.origin[1] + (info.size[1] - 0.5) * info.spacing[1];
-                let x2 = x1 + 0.1 * (x4 - x1), x3 = x1 + 0.9 * (x4 - x1);
-                let y2 = y1 + 0.1 * (y4 - y1), y3 = y1 + 0.9 * (y4 - y1);
+                let fraction, x1, x2, x3, x4, y1, y2, y3, y4, z1, z4, dd;
+                fraction = 0.1;
+                x1 = info.origin[0] - info.spacing[0]/2;
+                y1 = info.origin[1] - info.spacing[1]/2;
+                z1 = info.origin[2] - info.spacing[2]/2;
+                x4 = info.origin[0] + (info.size[0] - 0.5) * info.spacing[0];
+                y4 = info.origin[1] + (info.size[1] - 0.5) * info.spacing[1];
+                z4 = info.origin[2] + (info.size[2] - 0.5) * info.spacing[2];
+                dd = fraction * (x4-x1 + y4-y1 + z4-z1) / 3;  // average
+                dd = Math.min(dd, 0.45 * Math.min(x4-x1, y4-y1, z4-z1));  // failsafe
+                x2 = x1 + dd, x3 = x4 - dd, y2 = y1 + dd, y3 = y4 - dd;
                 traces.push({
                     type: 'scatter',
                     mode: 'lines',
@@ -663,7 +690,7 @@ class VolumeSlicer:
                     showlegend: false,
                     x: [x1, x1, x2, null, x3, x4, x4, null, x4, x4, x3, null, x2, x1, x1],
                     y: [y2, y1, y1, null, y1, y1, y2, null, y3, y4, y4, null, y4, y4, y3],
-                    line: {color: info.color, width: 5}
+                    line: {color: info.color, width: 4}
                 });
             }
 
