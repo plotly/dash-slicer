@@ -30,6 +30,8 @@ class VolumeSlicer:
       scene_id (str): the scene that this slicer is part of. Slicers
         that have the same scene-id show each-other's positions with
         line indicators. By default this is derived from ``id(volume)``.
+      thumbnail_size (int): linear size of low-resolution data to be uploaded
+      to the client.
 
     This is a placeholder object, not a Dash component. The components
     that make up the slicer can be accessed as attributes. These must all
@@ -73,6 +75,7 @@ class VolumeSlicer:
         axis=0,
         reverse_y=True,
         scene_id=None,
+        thumbnail_size=32,
     ):
 
         if not isinstance(app, Dash):
@@ -96,6 +99,11 @@ class VolumeSlicer:
         # Select the *other* axii
         self._other_axii = [0, 1, 2]
         self._other_axii.pop(self._axis)
+
+        # Check and store thumbnail size
+        if not (isinstance(thumbnail_size, int)):
+            raise ValueError("thumbnail_size must be an integer.")
+        self._thumbnail_size = thumbnail_size
 
         # Check and store scene id, and generate
         if scene_id is None:
@@ -136,6 +144,11 @@ class VolumeSlicer:
     def axis(self):
         """The axis at which the slicer is slicing."""
         return self._axis
+
+    @property
+    def thumbnail_size(self):
+        """Linear size of low-resolution data."""
+        return self._thumbnail_size
 
     @property
     def nslices(self):
@@ -260,7 +273,9 @@ class VolumeSlicer:
         info = self._slice_info
 
         # Prep low-res slices
-        thumbnail_size = get_thumbnail_size(info["size"][:2], (32, 32))
+        thumbnail_size = get_thumbnail_size(
+            info["size"][:2], (self._thumbnail_size, self._thumbnail_size)
+        )
         thumbnails = [
             img_array_to_uri(self._slice(i), thumbnail_size)
             for i in range(info["size"][2])
@@ -275,10 +290,7 @@ class VolumeSlicer:
             dragmode="pan",  # good default mode
         )
         fig.update_xaxes(
-            showgrid=False,
-            showticklabels=False,
-            zeroline=False,
-            constrain="range",
+            showgrid=False, showticklabels=False, zeroline=False, constrain="range",
         )
         fig.update_yaxes(
             showgrid=False,
@@ -291,9 +303,7 @@ class VolumeSlicer:
 
         # Create the graph (graph is a Dash component wrapping a Plotly figure)
         self._graph = Graph(
-            id=self._subid("graph"),
-            figure=fig,
-            config={"scrollZoom": True},
+            id=self._subid("graph"), figure=fig, config={"scrollZoom": True},
         )
 
         initial_index = info["size"][2] // 2
@@ -365,8 +375,7 @@ class VolumeSlicer:
         app = self._app
 
         @app.callback(
-            Output(self._server_data.id, "data"),
-            [Input(self._index.id, "data")],
+            Output(self._server_data.id, "data"), [Input(self._index.id, "data")],
         )
         def upload_requested_slice(slice_index):
             slice = img_array_to_uri(self._slice(slice_index))
@@ -432,11 +441,7 @@ class VolumeSlicer:
             Output(self._slider.id, "value"),
             [
                 Input(
-                    {
-                        "scene": self._scene_id,
-                        "context": ALL,
-                        "name": "setpos",
-                    },
+                    {"scene": self._scene_id, "context": ALL, "name": "setpos",},
                     "data",
                 )
             ],
@@ -491,10 +496,7 @@ class VolumeSlicer:
         """.replace(
                 "{{ID}}", self._context_id
             ),
-            [
-                Output(self._index.id, "data"),
-                Output(self._timer.id, "disabled"),
-            ],
+            [Output(self._index.id, "data"), Output(self._timer.id, "disabled"),],
             [Input(self._slider.id, "value"), Input(self._timer.id, "n_intervals")],
             [State(self._timer.id, "interval")],
         )
@@ -620,10 +622,7 @@ class VolumeSlicer:
                 )
                 for axis in self._other_axii
             ],
-            [
-                State(self._info.id, "data"),
-                State(self._indicator_traces.id, "data"),
-            ],
+            [State(self._info.id, "data"), State(self._indicator_traces.id, "data"),],
         )
 
         # ----------------------------------------------------------------------
@@ -650,7 +649,5 @@ class VolumeSlicer:
                 Input(self._img_traces.id, "data"),
                 Input(self._indicator_traces.id, "data"),
             ],
-            [
-                State(self.graph.id, "figure"),
-            ],
+            [State(self.graph.id, "figure"),],
         )

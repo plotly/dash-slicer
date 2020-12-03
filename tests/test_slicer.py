@@ -21,6 +21,10 @@ def test_slicer_init():
     with raises(ValueError):
         VolumeSlicer(app, vol, axis=4)
 
+    # Need a valide thumbnail_size
+    with raises(ValueError):
+        VolumeSlicer(app, vol, thumbnail_size=20.2)
+
     # This works
     s = VolumeSlicer(app, vol)
 
