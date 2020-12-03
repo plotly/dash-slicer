@@ -25,7 +25,7 @@ class VolumeSlicer:
         dimension (zyx).The spacing and origin are applied to make the slice
         drawn in "scene space" rather than "voxel space".
       origin (tuple of floats): The offset for each dimension (zyx).
-      axis (int): the dimension to slice in. Default 0.
+      axis (int): the dimension to slice in. The default 0.
       reverse_y (bool): Whether to reverse the y-axis, so that the origin of
         the slice is in the top-left, rather than bottom-left. Default True.
         (This sets the figure's yaxes ``autorange`` to "reversed" or True.)
@@ -117,14 +117,15 @@ class VolumeSlicer:
         VolumeSlicer._global_slicer_counter += 1
         self._context_id = "slicer" + str(VolumeSlicer._global_slicer_counter)
 
-        # Prepare slice info that we use at the client side
-        # todo: rename origing and spacing
+        # Prepare slice info that we use at the client side.
+        # Note that shape, origin and spacing are in zyx order.
+        # The size, offset, stepsize are in xyz local to the slicer
+        # (z is in direction of the axis).
         self._slice_info = {
-            "shape": tuple(volume.shape),
             "axis": self._axis,
             "size": shape3d_to_size2d(volume.shape, axis),
-            "origin": shape3d_to_size2d(origin, axis),
-            "spacing": shape3d_to_size2d(spacing, axis),
+            "offset": shape3d_to_size2d(origin, axis),
+            "stepsize": shape3d_to_size2d(spacing, axis),
             "color": color,
         }
 
@@ -322,7 +323,7 @@ class VolumeSlicer:
         initial_index = info["size"][2] // 2
         initial_state = {
             "index": initial_index,
-            "pos": info["origin"][2] + initial_index * info["spacing"][2],
+            "pos": info["offset"][2] + initial_index * info["stepsize"][2],
             "axis": info["axis"],
             "color": info["color"],
         }
@@ -422,7 +423,7 @@ class VolumeSlicer:
             if (data && data.points && data.points.length) {
                 let point = data["points"][0];
                 let xyz = [point["x"], point["y"]];
-                let depth = info.origin[2] + index * info.spacing[2];
+                let depth = info.offset[2] + index * info.stepsize[2];
                 xyz.splice(2 - info.axis, 0, depth);
                 return xyz;
             }
@@ -444,7 +445,7 @@ class VolumeSlicer:
                 if (!trigger.value) continue;
                 let pos = trigger.value[2 - info.axis];
                 if (typeof pos !== 'number') continue;
-                let index = Math.round((pos - info.origin[2]) / info.spacing[2]);
+                let index = Math.round((pos - info.offset[2]) / info.stepsize[2]);
                 if (index == cur_index) continue;
                 return Math.max(0, Math.min(info.size[2] - 1, index));
             }
@@ -507,7 +508,7 @@ class VolumeSlicer:
                     console.log('requesting slice ' + index);
                     new_state = {
                         index: index,
-                        pos: info.origin[2] + index * info.spacing[2],
+                        pos: info.offset[2] + index * info.stepsize[2],
                         axis: info.axis,
                         color: info.color,
                     };
@@ -542,10 +543,10 @@ class VolumeSlicer:
             // Prepare traces
             let slice_trace = {
                 type: 'image',
-                x0: info.origin[0],
-                y0: info.origin[1],
-                dx: info.spacing[0],
-                dy: info.spacing[1],
+                x0: info.offset[0],
+                y0: info.offset[1],
+                dx: info.stepsize[0],
+                dy: info.stepsize[1],
                 hovertemplate: '(%{x:.2f}, %{y:.2f})<extra></extra>'
             };
             let overlay_trace = {...slice_trace};
@@ -564,8 +565,8 @@ class VolumeSlicer:
                 // created, the pixel centers may not be correctly aligned.
                 slice_trace.dx *= info.size[0] / info.lowres_size[0];
                 slice_trace.dy *= info.size[1] / info.lowres_size[1];
-                slice_trace.x0 += 0.5 * slice_trace.dx - 0.5 * info.spacing[0];
-                slice_trace.y0 += 0.5 * slice_trace.dy - 0.5 * info.spacing[1];
+                slice_trace.x0 += 0.5 * slice_trace.dx - 0.5 * info.stepsize[0];
+                slice_trace.y0 += 0.5 * slice_trace.dy - 0.5 * info.stepsize[1];
             }
 
             // Has the image data even changed?
@@ -599,9 +600,9 @@ class VolumeSlicer:
         app.clientside_callback(
             """
         function update_indicator_traces(states, info) {
-            let x0 = info.origin[0], y0 = info.origin[1];
-            let x1 = x0 + info.size[0] * info.spacing[0], y1 = y0 + info.size[1] * info.spacing[1];
-            x0 = x0 - info.spacing[0], y0 = y0 - info.spacing[1];
+            let x0 = info.offset[0], y0 = info.offset[1];
+            let x1 = x0 + info.size[0] * info.stepsize[0], y1 = y0 + info.size[1] * info.stepsize[1];
+            x0 = x0 - info.stepsize[0], y0 = y0 - info.stepsize[1];
             let d = ((x1 - x0) + (y1 - y0)) * 0.5 * 0.05;
 
             let axii = [0, 1, 2];
@@ -674,12 +675,12 @@ class VolumeSlicer:
             if (indicators.length > 0 && info.color) {
                 let fraction, x1, x2, x3, x4, y1, y2, y3, y4, z1, z4, dd;
                 fraction = 0.1;
-                x1 = info.origin[0] - info.spacing[0]/2;
-                y1 = info.origin[1] - info.spacing[1]/2;
-                z1 = info.origin[2] - info.spacing[2]/2;
-                x4 = info.origin[0] + (info.size[0] - 0.5) * info.spacing[0];
-                y4 = info.origin[1] + (info.size[1] - 0.5) * info.spacing[1];
-                z4 = info.origin[2] + (info.size[2] - 0.5) * info.spacing[2];
+                x1 = info.offset[0] - info.stepsize[0]/2;
+                y1 = info.offset[1] - info.stepsize[1]/2;
+                z1 = info.offset[2] - info.stepsize[2]/2;
+                x4 = info.offset[0] + (info.size[0] - 0.5) * info.stepsize[0];
+                y4 = info.offset[1] + (info.size[1] - 0.5) * info.stepsize[1];
+                z4 = info.offset[2] + (info.size[2] - 0.5) * info.stepsize[2];
                 dd = fraction * (x4-x1 + y4-y1 + z4-z1) / 3;  // average
                 dd = Math.min(dd, 0.45 * Math.min(x4-x1, y4-y1, z4-z1));  // failsafe
                 x2 = x1 + dd, x3 = x4 - dd, y2 = y1 + dd, y3 = y4 - dd;
