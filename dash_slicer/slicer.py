@@ -1,5 +1,5 @@
 import numpy as np
-import plotly
+import plotly.graph_objects
 import dash
 from dash.dependencies import Input, Output, State, ALL
 from dash_core_components import Graph, Slider, Store, Interval
@@ -25,7 +25,7 @@ class VolumeSlicer:
         dimension (zyx).The spacing and origin are applied to make the slice
         drawn in "scene space" rather than "voxel space".
       origin (tuple of floats): The offset for each dimension (zyx).
-      axis (int): the dimension to slice in. The default 0.
+      axis (int): the dimension to slice in. Default 0.
       reverse_y (bool): Whether to reverse the y-axis, so that the origin of
         the slice is in the top-left, rather than bottom-left. Default True.
         Note: setting this to False affects performance, see #12.
@@ -172,8 +172,9 @@ class VolumeSlicer:
     @property
     def state(self):
         """A dcc.Store representing the current state of the slicer (present
-        in slicer.stores). Its data is a dict with the fields:
-        index (int), pos (float), axis (int), color (str).
+        in slicer.stores). Its data is a dict with the fields: index (int),
+        index_changed (bool), xrange (2 floats), yrange (2 floats),
+        zpos (float), axis (int), color (str).
 
         Its id is a dictionary so it can be used in a pattern matching Input.
         Fields: context, scene, name. Where scene is the scene_id and name is "state".
@@ -191,7 +192,7 @@ class VolumeSlicer:
     def create_overlay_data(self, mask, color=None):
         """Given a 3D mask array and an index, create an object that
         can be used as output for ``slicer.overlay_data``. The color
-        can be an rgb/rgba tuple, or a hex color. Alternatively, color
+        can be a hex color or an rgb/rgba tuple. Alternatively, color
         can be a list of such colors, defining a colormap.
         """
         # Check the mask
