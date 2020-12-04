@@ -654,16 +654,7 @@ class VolumeSlicer:
         }
         """,
             Output(self._indicator_traces.id, "data"),
-            [
-                Input(
-                    {
-                        "scene": self._scene_id,
-                        "context": ALL,
-                        "name": "state",
-                    },
-                    "data",
-                )
-            ],
+            [Input({"scene": self._scene_id, "context": ALL, "name": "state"}, "data")],
             [State(self._info.id, "data")],
         )
 
