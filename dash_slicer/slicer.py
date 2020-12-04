@@ -383,7 +383,7 @@ class VolumeSlicer:
             [Input(self._state.id, "data")],
         )
         def upload_requested_slice(state):
-            if state is None:
+            if state is None or not state["index_changed"]:
                 return dash.no_update
             index = state["index"]
             slice = img_array_to_uri(self._slice(index))
@@ -510,15 +510,20 @@ class VolumeSlicer:
             // experience, and the interval can be set much lower.
             if (now - private_state.new_time >= interval) {
                 disable_timer = true;
-                console.log('requesting slice ' + index);
                 new_state = {
                     index: index,
+                    index_changed: false,
                     xrange: xrange,
                     yrange: yrange,
                     zpos: info.offset[2] + index * info.stepsize[2],
                     axis: info.axis,
                     color: info.color,
                 };
+                if (index != private_state.index) {
+                    private_state.index = index;
+                    new_state.index_changed = true;
+                    console.log('requesting slice ' + index);
+                }
             }
 
             return [new_state, disable_timer];
@@ -541,7 +546,6 @@ class VolumeSlicer:
                 State(self._graph.id, "figure"),
             ],
         )
-        # todo: bring back new store for req-slice
 
         # ----------------------------------------------------------------------
         # Callback that creates a list of image traces (slice and overlay).
