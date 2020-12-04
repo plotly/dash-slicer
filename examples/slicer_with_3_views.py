@@ -99,8 +99,8 @@ function update_3d_figure(states, ori_figure) {
 }
     """,
     Output("3Dgraph", "figure"),
-    Input({"scene": slicer1.scene_id, "context": ALL, "name": "state"}, "data"),
-    State("3Dgraph", "figure"),
+    [Input({"scene": slicer1.scene_id, "context": ALL, "name": "state"}, "data")],
+    [State("3Dgraph", "figure")],
 )
 
 
