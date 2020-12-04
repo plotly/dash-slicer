@@ -478,18 +478,41 @@ class VolumeSlicer:
                 if (trigger.prop_id.indexOf('slider') >= 0) slider_was_moved = true;
             }
 
-            // Get axis ranges
+            // Calculate view range based on the volume
+            let xrangeVol = [
+                info.offset[0] - 0.5 * info.stepsize[0],
+                info.offset[0] + (info.size[0] - 0.5) * info.stepsize[0]
+            ];
+            let yrangeVol = [
+                info.offset[1] - 0.5 * info.stepsize[1],
+                info.offset[1] + (info.size[1] - 0.5) * info.stepsize[1]
+            ];
+
+            // Get view range from the figure. We make range[0] < range[1]
             let range_was_changed = false;
-            let xrange = figure.layout.xaxis.range
-            let yrange = figure.layout.yaxis.range;
+            let xrangeFig = figure.layout.xaxis.range
+            let yrangeFig = figure.layout.yaxis.range;
             if (relayoutData && relayoutData.xaxis && relayoutData.xaxis.range) {
-                xrange = relayoutData.xaxis.range;
+                xrangeFig = relayoutData.xaxis.range;
                 range_was_changed = true;
             }
             if (relayoutData && relayoutData.yaxis && relayoutData.yaxis.range) {
-                yrange = relayoutData.yaxis.range;
+                yrangeFig = relayoutData.yaxis.range;
                 range_was_changed = true
             }
+            xrangeFig = [Math.min(xrangeFig[0], xrangeFig[1]), Math.max(xrangeFig[0], xrangeFig[1])];
+            yrangeFig = [Math.min(yrangeFig[0], yrangeFig[1]), Math.max(yrangeFig[0], yrangeFig[1])];
+
+            // Add a little offset to avoid the corner-indicators for THIS slicer to
+            // only be half-visible. The 400 is an estimate of the figure width/height.
+            xrangeFig[0] += 2 * (xrangeFig[1] - xrangeFig[0]) / 400;
+            xrangeFig[1] -= 2 * (xrangeFig[1] - xrangeFig[0]) / 400;
+            yrangeFig[0] += 2 * (yrangeFig[1] - yrangeFig[0]) / 400;
+            yrangeFig[1] -= 2 * (yrangeFig[1] - yrangeFig[0]) / 400;
+
+            // Combine the ranges
+            let xrange = [Math.max(xrangeVol[0], xrangeFig[0]), Math.min(xrangeVol[1], xrangeFig[1])];
+            let yrange = [Math.max(yrangeVol[0], yrangeFig[0]), Math.min(yrangeVol[1], yrangeFig[1])];
 
             // Initialize return values
             let new_state = dash_clientside.no_update;
@@ -614,7 +637,7 @@ class VolumeSlicer:
 
         app.clientside_callback(
             """
-        function update_indicator_traces(states, info) {
+        function update_indicator_traces(states, info, thisState) {
             let traces = [];
 
             for (let state of states) {
@@ -640,23 +663,52 @@ class VolumeSlicer:
                 }
             }
 
+            // Show our own color around the image, but only if there are other
+            // slicers with the same scene id, on a different axis. We do some
+            // math to make sure that these indicators are the same size (in
+            // scene coordinates) for all slicers of the same data.
+            if (thisState && info.color && traces.length) {
+                let fraction = 0.1;
+                let lengthx = info.size[0] * info.stepsize[0];
+                let lengthy = info.size[1] * info.stepsize[1];
+                let lengthz = info.size[2] * info.stepsize[2];
+                let dd = fraction * (lengthx + lengthy + lengthz) / 3;  // average
+                dd = Math.min(dd, 0.45 * Math.min(lengthx, lengthy, lengthz));  // failsafe
+                let x1 = thisState.xrange[0];
+                let x2 = thisState.xrange[0] + dd;
+                let x3 = thisState.xrange[1] - dd;
+                let x4 = thisState.xrange[1];
+                let y1 = thisState.yrange[0];
+                let y2 = thisState.yrange[0] + dd;
+                let y3 = thisState.yrange[1] - dd;
+                let y4 = thisState.yrange[1];
+                traces.push({
+                    x: [x1, x1, x2, null, x3, x4, x4, null, x4, x4, x3, null, x2, x1, x1],
+                    y: [y2, y1, y1, null, y1, y1, y2, null, y3, y4, y4, null, y4, y4, y3],
+                    line: {color: info.color, width: 4}
+                });
+            }
+
+            // Post-process the traces we created above
             for (let trace of traces) {
                 trace.type = 'scatter';
                 trace.mode = 'lines';
                 trace.hoverinfo = 'skip';
                 trace.showlegend = false;
             }
-
-            if (states.length && !traces.length) {
-                return dash_clientside.no_update;
-            } else {
+            if (thisState) {
                 return traces;
+            } else {
+                return dash_clientside.no_update;
             }
         }
         """,
             Output(self._indicator_traces.id, "data"),
             [Input({"scene": self._scene_id, "context": ALL, "name": "state"}, "data")],
-            [State(self._info.id, "data")],
+            [
+                State(self._info.id, "data"),
+                State(self._state.id, "data"),
+            ],
         )
 
         # ----------------------------------------------------------------------
@@ -665,51 +717,12 @@ class VolumeSlicer:
         app.clientside_callback(
             """
         function update_figure(img_traces, indicators, info, ori_figure) {
-
             // Collect traces
             let traces = [];
             for (let trace of img_traces) { traces.push(trace); }
             for (let trace of indicators) { if (trace.line.color) traces.push(trace); }
-
-            // Show our own color around the image, but only if there are other
-            // slicers with the same scene id, on a different axis. We do some
-            // math to make sure that these indicators are the same size (in
-            // scene coordinates) for all slicers of the same data. We add it
-            // here and not in update_indicator_traces() because we want that the
-            // indicator IS taken into account with autoscale.
-            if (info.color) {
-                let fraction, x1, x2, x3, x4, y1, y2, y3, y4, z1, z4, dd;
-                fraction = 0.1;
-                x1 = info.offset[0] - info.stepsize[0]/2;
-                y1 = info.offset[1] - info.stepsize[1]/2;
-                z1 = info.offset[2] - info.stepsize[2]/2;
-                x4 = info.offset[0] + (info.size[0] - 0.5) * info.stepsize[0];
-                y4 = info.offset[1] + (info.size[1] - 0.5) * info.stepsize[1];
-                z4 = info.offset[2] + (info.size[2] - 0.5) * info.stepsize[2];
-                dd = fraction * (x4-x1 + y4-y1 + z4-z1) / 3;  // average
-                dd = Math.min(dd, 0.45 * Math.min(x4-x1, y4-y1, z4-z1));  // failsafe
-                x2 = x1 + dd, x3 = x4 - dd, y2 = y1 + dd, y3 = y4 - dd;
-                let color = indicators.length ? info.color : null;
-                traces.push({
-                    type: 'scatter',
-                    mode: 'lines',
-                    hoverinfo: 'skip',
-                    showlegend: false,
-                    x: [x1, x1, x2, null, x3, x4, x4, null, x4, x4, x3, null, x2, x1, x1],
-                    y: [y2, y1, y1, null, y1, y1, y2, null, y3, y4, y4, null, y4, y4, y3],
-                    line: {color: color, width: 4}
-                });
-            }
-
             // Update figure
-            // We start with autorange to nicely snap around the image, but then
-            // we want it turned off, so that 'large' traces (e.g. indicators of
-            // other slicers) don't cause the figure to zoom out.
             let figure = {...ori_figure};
-            if (ori_figure.data.length) {
-                figure.layout.xaxis.autorange = false;
-                figure.layout.yaxis.autorange = false;
-            }
             figure.data = traces;
             return figure;
         }
