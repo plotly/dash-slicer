@@ -503,12 +503,16 @@ class VolumeSlicer:
             xrangeFig = [Math.min(xrangeFig[0], xrangeFig[1]), Math.max(xrangeFig[0], xrangeFig[1])];
             yrangeFig = [Math.min(yrangeFig[0], yrangeFig[1]), Math.max(yrangeFig[0], yrangeFig[1])];
 
-            // Add a little offset to avoid the corner-indicators for THIS slicer to
-            // only be half-visible. The 400 is an estimate of the figure width/height.
-            xrangeFig[0] += 2 * (xrangeFig[1] - xrangeFig[0]) / 400;
-            xrangeFig[1] -= 2 * (xrangeFig[1] - xrangeFig[0]) / 400;
-            yrangeFig[0] += 2 * (yrangeFig[1] - yrangeFig[0]) / 400;
-            yrangeFig[1] -= 2 * (yrangeFig[1] - yrangeFig[0]) / 400;
+            // Add offset to avoid the corner-indicators for THIS slicer to only be half-visible
+            let plotSize = [400, 400];  // This estimate results in ok results
+            let graphDiv = document.getElementById('{{ID}}-graph');
+            let plotDiv = graphDiv.getElementsByClassName('js-plotly-plot')[0];
+            if (plotDiv && plotDiv._fullLayout)
+                plotSize = [plotDiv._fullLayout.width, plotDiv._fullLayout.height];
+            xrangeFig[0] += 2 * (xrangeFig[1] - xrangeFig[0]) / plotSize[0];
+            xrangeFig[1] -= 2 * (xrangeFig[1] - xrangeFig[0]) / plotSize[0];
+            yrangeFig[0] += 2 * (yrangeFig[1] - yrangeFig[0]) / plotSize[1];
+            yrangeFig[1] -= 2 * (yrangeFig[1] - yrangeFig[0]) / plotSize[1];
 
             // Combine the ranges
             let xrange = [Math.max(xrangeVol[0], xrangeFig[0]), Math.min(xrangeVol[1], xrangeFig[1])];
