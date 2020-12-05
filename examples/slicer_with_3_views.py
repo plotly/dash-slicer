@@ -26,6 +26,9 @@ verts, faces, _, _ = marching_cubes(vol, 300, step_size=4)
 x, y, z = verts.T
 i, j, k = faces.T
 mesh = go.Mesh3d(x=z, y=y, z=x, opacity=0.2, i=k, j=j, k=i)
+fig = go.Figure(data=[mesh])
+fig.update_layout(uirevision="anything")  # prevent orientation reset on update
+
 
 # Put everything together in a 2x2 grid
 app.layout = html.Div(
@@ -64,7 +67,7 @@ app.layout = html.Div(
         html.Div(
             [
                 html.Center(html.H1("3D")),
-                dcc.Graph(id="3Dgraph", figure=go.Figure(data=[mesh])),
+                dcc.Graph(id="3Dgraph", figure=fig),
             ]
         ),
     ],
