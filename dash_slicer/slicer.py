@@ -30,9 +30,10 @@ class VolumeSlicer:
       scene_id (str): the scene that this slicer is part of. Slicers
         that have the same scene-id show each-other's positions with
         line indicators. By default this is derived from ``id(volume)``.
-      thumbnail_size (int or None): linear size of low-resolution data to be
-      uploaded to the client. If ``None``, the full-resolution data are
-      uploaded client-side.
+      thumbnail (int or bool): linear size of low-resolution data to be
+        uploaded to the client. If ``False``, the full-resolution data are
+        uploaded client-side. If ``True`` (default), a default value of 32 is
+        used.
 
     This is a placeholder object, not a Dash component. The components
     that make up the slicer can be accessed as attributes. These must all
@@ -76,7 +77,7 @@ class VolumeSlicer:
         axis=0,
         reverse_y=True,
         scene_id=None,
-        thumbnail_size=32,
+        thumbnail=True,
     ):
 
         if not isinstance(app, Dash):
@@ -101,10 +102,15 @@ class VolumeSlicer:
         self._other_axii = [0, 1, 2]
         self._other_axii.pop(self._axis)
 
-        # Check and store thumbnail size
-        if thumbnail_size is not None and not (isinstance(thumbnail_size, int)):
-            raise ValueError("thumbnail_size must be an integer, or None.")
-        self._thumbnail_size = thumbnail_size
+        # Check and store thumbnail
+        if not (isinstance(thumbnail, (int, bool))):
+            raise ValueError("thumbnail must be a boolean or an integer.")
+        # No thumbnail if thumbnail size is larger than image size
+        if isinstance(thumbnail, int) and thumbnail > np.max(volume.shape):
+            thumbnail = False
+        if thumbnail is True:
+            thumbnail = 32  # default size
+        self._thumbnail = thumbnail
 
         # Check and store scene id, and generate
         if scene_id is None:
@@ -129,7 +135,7 @@ class VolumeSlicer:
 
         # Build the slicer
         self._create_dash_components()
-        if thumbnail_size is not None:
+        if thumbnail:
             self._create_server_callbacks()
         self._create_client_callbacks()
 
@@ -146,11 +152,6 @@ class VolumeSlicer:
     def axis(self):
         """The axis at which the slicer is slicing."""
         return self._axis
-
-    @property
-    def thumbnail_size(self):
-        """Linear size of low-resolution data."""
-        return self._thumbnail_size
 
     @property
     def nslices(self):
@@ -275,12 +276,12 @@ class VolumeSlicer:
         info = self._slice_info
 
         # Prep low-res slices
-        if self._thumbnail_size is None:
+        if self._thumbnail is False:
             thumbnail_size = None
             info["lowres_size"] = info["size"]
         else:
             thumbnail_size = get_thumbnail_size(
-                info["size"][:2], (self._thumbnail_size, self._thumbnail_size)
+                info["size"][:2], (self._thumbnail, self._thumbnail)
             )
             info["lowres_size"] = thumbnail_size
         thumbnails = [
