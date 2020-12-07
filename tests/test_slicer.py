@@ -35,6 +35,20 @@ def test_slicer_init():
     assert all(isinstance(store, (dcc.Store, dcc.Interval)) for store in s.stores)
 
 
+def test_slicer_thumbnail():
+    app = dash.Dash()
+    vol = np.random.uniform(0, 255, (100, 100, 100)).astype(np.uint8)
+
+    s = VolumeSlicer(app, vol)
+    # Test for name pattern of server-side callback when thumbnails are used
+    assert any(["server-data.data" in key for key in app.callback_map])
+
+    app = dash.Dash()
+    s = VolumeSlicer(app, vol, thumbnail=False)
+    # No server-side callbacks when no thumbnails are used
+    assert not any(["server-data.data" in key for key in app.callback_map])
+
+
 def test_scene_id_and_context_id():
     app = dash.Dash()
 
