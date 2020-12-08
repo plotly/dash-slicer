@@ -21,6 +21,10 @@ def test_slicer_init():
     with raises(ValueError):
         VolumeSlicer(app, vol, axis=4)
 
+    # Need a valide thumbnail
+    with raises(ValueError):
+        VolumeSlicer(app, vol, thumbnail=20.2)
+
     # This works
     s = VolumeSlicer(app, vol)
 
@@ -29,6 +33,20 @@ def test_slicer_init():
     assert isinstance(s.slider, dcc.Slider)
     assert isinstance(s.stores, list)
     assert all(isinstance(store, (dcc.Store, dcc.Interval)) for store in s.stores)
+
+
+def test_slicer_thumbnail():
+    app = dash.Dash()
+    vol = np.random.uniform(0, 255, (100, 100, 100)).astype(np.uint8)
+
+    _ = VolumeSlicer(app, vol)
+    # Test for name pattern of server-side callback when thumbnails are used
+    assert any(["server-data.data" in key for key in app.callback_map])
+
+    app = dash.Dash()
+    _ = VolumeSlicer(app, vol, thumbnail=False)
+    # No server-side callbacks when no thumbnails are used
+    assert not any(["server-data.data" in key for key in app.callback_map])
 
 
 def test_scene_id_and_context_id():

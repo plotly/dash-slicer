@@ -30,6 +30,10 @@ class VolumeSlicer:
       scene_id (str): the scene that this slicer is part of. Slicers
         that have the same scene-id show each-other's positions with
         line indicators. By default this is derived from ``id(volume)``.
+      thumbnail (int or bool): linear size of low-resolution data to be
+        uploaded to the client. If ``False``, the full-resolution data are
+        uploaded client-side. If ``True`` (default), a default value of 32 is
+        used.
 
     This is a placeholder object, not a Dash component. The components
     that make up the slicer can be accessed as attributes. These must all
@@ -73,6 +77,7 @@ class VolumeSlicer:
         axis=0,
         reverse_y=True,
         scene_id=None,
+        thumbnail=True,
     ):
 
         if not isinstance(app, Dash):
@@ -97,6 +102,16 @@ class VolumeSlicer:
         self._other_axii = [0, 1, 2]
         self._other_axii.pop(self._axis)
 
+        # Check and store thumbnail
+        if not (isinstance(thumbnail, (int, bool))):
+            raise ValueError("thumbnail must be a boolean or an integer.")
+        # No thumbnail if thumbnail size is larger than image size
+        if isinstance(thumbnail, int) and thumbnail > np.max(volume.shape):
+            thumbnail = False
+        if thumbnail is True:
+            thumbnail = 32  # default size
+        self._thumbnail = thumbnail
+
         # Check and store scene id, and generate
         if scene_id is None:
             n = len(_assigned_scene_ids)
@@ -120,7 +135,8 @@ class VolumeSlicer:
 
         # Build the slicer
         self._create_dash_components()
-        self._create_server_callbacks()
+        if thumbnail:
+            self._create_server_callbacks()
         self._create_client_callbacks()
 
     # Note(AK): we could make some stores public, but let's do this only when actual use-cases arise?
@@ -260,12 +276,18 @@ class VolumeSlicer:
         info = self._slice_info
 
         # Prep low-res slices
-        thumbnail_size = get_thumbnail_size(info["size"][:2], (32, 32))
+        if self._thumbnail is False:
+            thumbnail_size = None
+            info["lowres_size"] = info["size"]
+        else:
+            thumbnail_size = get_thumbnail_size(
+                info["size"][:2], (self._thumbnail, self._thumbnail)
+            )
+            info["lowres_size"] = thumbnail_size
         thumbnails = [
             img_array_to_uri(self._slice(i), thumbnail_size)
             for i in range(info["size"][2])
         ]
-        info["lowres_size"] = thumbnail_size
 
         # Create the figure object - can be accessed by user via slicer.graph.figure
         self._fig = fig = Figure(data=[])
@@ -324,7 +346,9 @@ class VolumeSlicer:
         self._overlay_data = Store(id=self._subid("overlay"), data=[])
 
         # Slice data provided by the server
-        self._server_data = Store(id=self._subid("server-data"), data="")
+        self._server_data = Store(
+            id=self._subid("server-data"), data={"index": -1, "slice": None}
+        )
 
         # Store image traces for the slicer.
         self._img_traces = Store(id=self._subid("img-traces"), data=[])
