@@ -1,4 +1,5 @@
-# The docstring below is used as part of the reference docs.
+# The docstring below is used as part of the reference docs. It describes
+# the parts that cannot be described well via the properties and methods.
 
 """
 
@@ -11,15 +12,7 @@ a pattern matching input like this:
 Input({"scene": scene_id, "context": ALL, "name": "state"})
 ```
 
-These state values are objects with fields:
-
-* "index": the integer slice index.
-* "index_changed": a bool indicating whether the index changed since last time.
-* "xrange": the view range (2 floats) in the x-dimension (2D).
-* "yrange": the view range (2 floats) in the y-dimension (2D).
-* "zpos": the float position aling the axis, in scene coordinates.
-* "axis": the axis (int) for this slicer.
-* "color": the color (str) for this slicer.
+See the `state` properties for details.
 
 
 ### Setting slicer positions
@@ -32,10 +25,14 @@ a dictionary-id that has the following fields:
 * 'name': 'setpos'
 
 The value in the store must be an 3-element tuple (x, y, z) in scene coordinates.
-To apply the position for one dimension only, use e.g ``(None, None, x)``.
+To apply the position for one dimension only, use e.g `(None, None, x)`.
 
 
 ### Performance tips
+
+There tends to be a lot of interaction in an application that contains
+slicer objects. Therefore, performance matters to realize a smooth user
+experience. Here are some tips to help with that:
 
 * Most importantly, when running the server in debug mode, consider setting
   `dev_tools_props_check=False`.
@@ -70,7 +67,7 @@ class VolumeSlicer:
     * `app` (`dash.Dash`): the Dash application instance.
     * `volume` (`ndarray`): the 3D numpy array to slice through. The dimensions
       are assumed to be in zyx order. If this is not the case, you can
-      use ``np.swapaxes`` to make it so.
+      use `np.swapaxes` to make it so.
     * `spacing` (tuple of `float`): The distance between voxels for each
       dimension (zyx).The spacing and origin are applied to make the slice
       drawn in "scene space" rather than "voxel space".
@@ -81,13 +78,13 @@ class VolumeSlicer:
       Note: setting this to False affects performance, see #12.
     * `scene_id` (`str`): the scene that this slicer is part of. Slicers
       that have the same scene-id show each-other's positions with
-      line indicators. By default this is derived from ``id(volume)``.
+      line indicators. By default this is derived from `id(volume)`.
     * `color` (`str`): the color for this slicer. By default the color is
       red, green, or blue, depending on the axis. Set to empty string
       for "no color".
-    * thumbnail (int or bool): linear size of low-resolution data to be
-      uploaded to the client. If ``False``, the full-resolution data are
-      uploaded client-side. If ``True`` (default), a default value of 32 is
+    * thumbnail (`int` or `bool`): linear size of low-resolution data to be
+      uploaded to the client. If `False`, the full-resolution data are
+      uploaded client-side. If `True` (default), a default value of 32 is
       used.
 
     Note that this is not a Dash component. The components that make
@@ -184,18 +181,18 @@ class VolumeSlicer:
         return self._scene_id
 
     @property
-    def axis(self):
-        """The axis at which the slicer is slicing."""
+    def axis(self) -> int:
+        """The axis at wich the slicer is slicing."""
         return self._axis
 
     @property
-    def nslices(self):
+    def nslices(self) -> int:
         """The number of slices for this slicer."""
         return self._volume.shape[self._axis]
 
     @property
     def graph(self):
-        """The dcc.Graph for this slicer. Use ``graph.figure`` to access the
+        """The `dcc.Graph` for this slicer. Use `graph.figure` to access the
         Plotly Figure object.
         """
         return self._graph
@@ -204,40 +201,47 @@ class VolumeSlicer:
     def slider(self):
         """The `dcc.Slider` to change the index for this slicer. If you
         don't want to use the slider, wrap it in a div with style
-        ``display: none``.
+        `display: none`.
         """
         return self._slider
 
     @property
     def stores(self):
-        """A list of dcc.Store objects that the slicer needs to work.
+        """A list of `dcc.Store` objects that the slicer needs to work.
         These must be added to the app layout.
         """
         return self._stores
 
     @property
     def state(self):
-        """A dcc.Store representing the current state of the slicer (present
-        in slicer.stores). Its data is a dict with the fields: index (int),
-        index_changed (bool), xrange (2 floats), yrange (2 floats),
-        zpos (float), axis (int), color (str).
+        """A `dcc.Store` representing the current state of the slicer (present
+        in slicer.stores). Its data is a dict with the fields:
 
-        Its id is a dictionary so it can be used in a pattern matching Input.
-        Fields: context, scene, name. Where scene is the scene_id and name is "state".
+        * "index": the integer slice index.
+        * "index_changed": a bool indicating whether the index changed since last time.
+        * "xrange": the view range (2 floats) in the x-dimension (2D).
+        * "yrange": the view range (2 floats) in the y-dimension (2D).
+        * "zpos": the float position aling the axis, in scene coordinates.
+        * "axis": the axis (int) for this slicer.
+        * "color": the color (str) for this slicer.
+
+        The id of the store is a dictionary so it can be used in a
+        pattern matching Input. Its field are: context, scene, name.
+        Where scene is the scene_id and name is "state".
         """
         return self._state
 
     @property
     def overlay_data(self):
-        """A dcc.Store containing the overlay data. The form of this
+        """A `dcc.Store` containing the overlay data. The form of this
         data is considered an implementation detail; users are expected to use
-        ``create_overlay_data`` to create it.
+        `create_overlay_data` to create it.
         """
         return self._overlay_data
 
     def create_overlay_data(self, mask, color=None):
         """Given a 3D mask array and an index, create an object that
-        can be used as output for ``slicer.overlay_data``. The color
+        can be used as output for `slicer.overlay_data`. The color
         can be a hex color or an rgb/rgba tuple. Alternatively, color
         can be a list of such colors, defining a colormap.
         """

@@ -1,3 +1,7 @@
+"""
+Utilities to produce simple reference docs (in Markdown) from the source code.
+"""
+
 import os
 import inspect
 
@@ -39,7 +43,7 @@ def get_reference_docs():
         "self, ", ""
     )
     doc = f"**class `VolumeSlicer{sig}`**"
-    doc += "\n\n" + dedent(dash_slicer.VolumeSlicer.__doc__)
+    doc += "\n\n" + dedent(dash_slicer.VolumeSlicer.__doc__).rstrip()
     methods.append(doc)
 
     for name in dir(dash_slicer.VolumeSlicer):
@@ -51,16 +55,17 @@ def get_reference_docs():
             # Method
             sig = str(inspect.signature(val)).replace("self, ", "")
             doc = f"**method `VolumeSlicer.{name}{sig}`**"
-            doc += "\n\n" + dedent(val.__doc__)
+            doc += "\n\n" + dedent(val.__doc__).rstrip()
             methods.append(doc)
         else:
             # Property
             doc = f"**property `VolumeSlicer.{name}`**"
             try:
-                doc += " " + val.fget.__annotations__["return"].__name__
+                typ = val.fget.__annotations__["return"].__name__
+                doc += f" (`{typ}`)"
             except (AttributeError, KeyError):
                 pass
-            doc += ": " + dedent(val.__doc__)
+            doc += ": " + dedent(val.__doc__).rstrip()
             props.append(doc)
 
     parts = []
