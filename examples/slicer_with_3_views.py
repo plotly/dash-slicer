@@ -17,9 +17,9 @@ server = app.server
 
 # Read volumes and create slicer objects
 vol = imageio.volread("imageio:stent.npz")
-slicer1 = VolumeSlicer(app, vol, axis=0)
-slicer2 = VolumeSlicer(app, vol, axis=1)
-slicer3 = VolumeSlicer(app, vol, axis=2)
+slicer0 = VolumeSlicer(app, vol, axis=0)
+slicer1 = VolumeSlicer(app, vol, axis=1)
+slicer2 = VolumeSlicer(app, vol, axis=2)
 
 # Calculate isosurface and create a figure with a mesh object
 verts, faces, _, _ = marching_cubes(vol, 300, step_size=4)
@@ -40,6 +40,15 @@ app.layout = html.Div(
         html.Div(
             [
                 html.Center(html.H1("Transversal")),
+                slicer0.graph,
+                html.Br(),
+                slicer0.slider,
+                *slicer0.stores,
+            ]
+        ),
+        html.Div(
+            [
+                html.Center(html.H1("Coronal")),
                 slicer1.graph,
                 html.Br(),
                 slicer1.slider,
@@ -48,20 +57,11 @@ app.layout = html.Div(
         ),
         html.Div(
             [
-                html.Center(html.H1("Coronal")),
+                html.Center(html.H1("Sagittal")),
                 slicer2.graph,
                 html.Br(),
                 slicer2.slider,
                 *slicer2.stores,
-            ]
-        ),
-        html.Div(
-            [
-                html.Center(html.H1("Sagittal")),
-                slicer3.graph,
-                html.Br(),
-                slicer3.slider,
-                *slicer3.stores,
             ]
         ),
         html.Div(
@@ -102,7 +102,7 @@ function update_3d_figure(states, ori_figure) {
 }
     """,
     Output("3Dgraph", "figure"),
-    [Input({"scene": slicer1.scene_id, "context": ALL, "name": "state"}, "data")],
+    [Input({"scene": slicer0.scene_id, "context": ALL, "name": "state"}, "data")],
     [State("3Dgraph", "figure")],
 )
 
