@@ -54,6 +54,7 @@ This code is distributed under MIT license.
 * Use `black .` to autoformat.
 * Use `flake8 .` to lint.
 * Use `pytest .` to run the tests.
+* Use `python dash_slicer\docs.py` to update the ref docs in the readme.
 
 On every PR, an app with the same name as your branch is deployed to the Dash
 playground instance so that you can change whether your changes did not break
@@ -87,7 +88,7 @@ instantiation one can provide the following parameters:
 * `color` (`str`): the color for this slicer. By default the color is
   red, green, or blue, depending on the axis. Set to empty string
   for "no color".
-* thumbnail (`int` or `bool`): linear size of low-resolution data to be
+* `thumbnail` (`int` or `bool`): linear size of low-resolution data to be
   uploaded to the client. If `False`, the full-resolution data are
   uploaded client-side. If `True` (default), a default value of 32 is
   used.
@@ -103,7 +104,7 @@ can be used as output for `slicer.overlay_data`. The color
 can be a hex color or an rgb/rgba tuple. Alternatively, color
 can be a list of such colors, defining a colormap.
 
-**property `VolumeSlicer.axis`** (`int`): The axis at wich the slicer is slicing.
+**property `VolumeSlicer.axis`** (`int`): The axis at which the slicer is slicing.
 
 **property `VolumeSlicer.graph`**: The `dcc.Graph` for this slicer. Use `graph.figure` to access the
 Plotly Figure object.
@@ -150,7 +151,7 @@ a pattern matching input like this:
 Input({"scene": scene_id, "context": ALL, "name": "state"})
 ```
 
-See the `state` properties for details.
+See the `state` property for details.
 
 
 ### Setting slicer positions

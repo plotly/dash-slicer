@@ -12,7 +12,7 @@ a pattern matching input like this:
 Input({"scene": scene_id, "context": ALL, "name": "state"})
 ```
 
-See the `state` properties for details.
+See the `state` property for details.
 
 
 ### Setting slicer positions
@@ -82,7 +82,7 @@ class VolumeSlicer:
     * `color` (`str`): the color for this slicer. By default the color is
       red, green, or blue, depending on the axis. Set to empty string
       for "no color".
-    * thumbnail (`int` or `bool`): linear size of low-resolution data to be
+    * `thumbnail` (`int` or `bool`): linear size of low-resolution data to be
       uploaded to the client. If `False`, the full-resolution data are
       uploaded client-side. If `True` (default), a default value of 32 is
       used.
@@ -182,7 +182,7 @@ class VolumeSlicer:
 
     @property
     def axis(self) -> int:
-        """The axis at wich the slicer is slicing."""
+        """The axis at which the slicer is slicing."""
         return self._axis
 
     @property
