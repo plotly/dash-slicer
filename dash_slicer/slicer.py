@@ -1,11 +1,14 @@
 import numpy as np
-from plotly.graph_objects import Figure
-from dash import Dash
+import plotly.graph_objects
+import dash
 from dash.dependencies import Input, Output, State, ALL
 from dash_core_components import Graph, Slider, Store, Interval
 
 from .utils import img_array_to_uri, get_thumbnail_size, shape3d_to_size2d
 
+
+# The default colors to use for indicators and overlays
+discrete_colors = plotly.colors.qualitative.D3
 
 _assigned_scene_ids = {}  # id(volume) -> str
 
@@ -25,11 +28,13 @@ class VolumeSlicer:
       axis (int): the dimension to slice in. Default 0.
       reverse_y (bool): Whether to reverse the y-axis, so that the origin of
         the slice is in the top-left, rather than bottom-left. Default True.
-        (This sets the figure's yaxes ``autorange`` to "reversed" or True.)
         Note: setting this to False affects performance, see #12.
       scene_id (str): the scene that this slicer is part of. Slicers
         that have the same scene-id show each-other's positions with
         line indicators. By default this is derived from ``id(volume)``.
+      color (str): the color for this slicer. By default the color is
+        red, green, or blue, depending on the axis. Set to empty string
+        for "no color".
       thumbnail (int or bool): linear size of low-resolution data to be
         uploaded to the client. If ``False``, the full-resolution data are
         uploaded client-side. If ``True`` (default), a default value of 32 is
@@ -40,7 +45,7 @@ class VolumeSlicer:
     be present in the app layout:
 
     * ``graph``: the dcc.Graph object. Use ``graph.figure`` to access the
-      Plotly figure object.
+      Plotly Figure object.
     * ``slider``: the dcc.Slider object, its value represents the slice
       index. If you don't want to use the slider, wrap it in a div with
       style ``display: none``.
@@ -77,10 +82,11 @@ class VolumeSlicer:
         axis=0,
         reverse_y=True,
         scene_id=None,
+        color=None,
         thumbnail=True,
     ):
 
-        if not isinstance(app, Dash):
+        if not isinstance(app, dash.Dash):
             raise TypeError("Expect first arg to be a Dash app.")
         self._app = app
 
@@ -98,9 +104,6 @@ class VolumeSlicer:
             raise ValueError("The given axis must be 0, 1, or 2.")
         self._axis = int(axis)
         self._reverse_y = bool(reverse_y)
-        # Select the *other* axii
-        self._other_axii = [0, 1, 2]
-        self._other_axii.pop(self._axis)
 
         # Check and store thumbnail
         if not (isinstance(thumbnail, (int, bool))):
@@ -120,17 +123,24 @@ class VolumeSlicer:
             raise TypeError("scene_id must be a string")
         self._scene_id = scene_id
 
+        # Check color
+        if color is None:
+            color = discrete_colors[self._axis]
+
         # Get unique id scoped to this slicer object
         VolumeSlicer._global_slicer_counter += 1
         self._context_id = "slicer" + str(VolumeSlicer._global_slicer_counter)
 
-        # Prepare slice info that we use at the client side
+        # Prepare slice info that we use at the client side.
+        # Note that shape, origin and spacing are in zyx order.
+        # The size, offset, stepsize are in xyz local to the slicer
+        # (z is in direction of the axis).
         self._slice_info = {
-            "shape": tuple(volume.shape),
             "axis": self._axis,
             "size": shape3d_to_size2d(volume.shape, axis),
-            "origin": shape3d_to_size2d(origin, axis),
-            "spacing": shape3d_to_size2d(spacing, axis),
+            "offset": shape3d_to_size2d(origin, axis),
+            "stepsize": shape3d_to_size2d(spacing, axis),
+            "color": color,
         }
 
         # Build the slicer
@@ -176,18 +186,16 @@ class VolumeSlicer:
         return self._stores
 
     @property
-    def index(self):
-        """A dcc.Store containing the integer slice number. This value
-        is a rate-limited version of the slider value.
-        """
-        return self._index
+    def state(self):
+        """A dcc.Store representing the current state of the slicer (present
+        in slicer.stores). Its data is a dict with the fields: index (int),
+        index_changed (bool), xrange (2 floats), yrange (2 floats),
+        zpos (float), axis (int), color (str).
 
-    @property
-    def pos(self):
-        """A dcc.Store containing the float position in scene coordinates,
-        along the slice-axis.
+        Its id is a dictionary so it can be used in a pattern matching Input.
+        Fields: context, scene, name. Where scene is the scene_id and name is "state".
         """
-        return self._pos
+        return self._state
 
     @property
     def overlay_data(self):
@@ -197,9 +205,11 @@ class VolumeSlicer:
         """
         return self._overlay_data
 
-    def create_overlay_data(self, mask, color=(0, 255, 255, 100)):
+    def create_overlay_data(self, mask, color=None):
         """Given a 3D mask array and an index, create an object that
-        can be used as output for ``slicer.overlay_data``.
+        can be used as output for ``slicer.overlay_data``. The color
+        can be a hex color or an rgb/rgba tuple. Alternatively, color
+        can be a list of such colors, defining a colormap.
         """
         # Check the mask
         if mask.dtype not in (np.bool, np.uint8):
@@ -211,20 +221,34 @@ class VolumeSlicer:
         mask = mask.astype(np.uint8, copy=False)  # need int to index
 
         # Create a colormap (list) from the given color(s)
-        # todo: also support hex colors and css color names
-        color = np.array(color, np.uint8)
-        if color.ndim == 1:
-            if color.shape[0] != 4:
-                raise ValueError("Overlay color must be 4 ints (0..255).")
-            colormap = [(0, 0, 0, 0), tuple(color)]
-        elif color.ndim == 2:
-            if color.shape[1] != 4:
-                raise ValueError("Overlay colors must be 4 ints (0..255).")
-            colormap = [tuple(x) for x in color]
+        if color is None:
+            colormap = discrete_colors[3:]
+        elif isinstance(color, (tuple, list)) and all(
+            isinstance(x, (int, float)) for x in color
+        ):
+            colormap = [color]
         else:
-            raise ValueError(
-                "Overlay color must be a single color or a list of colors."
-            )
+            colormap = list(color)
+
+        # Normalize the colormap so each element is a 4-element tuple
+        for i in range(len(colormap)):
+            c = colormap[i]
+            if isinstance(c, str):
+                if c.startswith("#"):
+                    c = plotly.colors.hex_to_rgb(c)
+                else:
+                    raise ValueError(
+                        "Named colors are not (yet) supported, hex colors are."
+                    )
+            c = tuple(int(x) for x in c)
+            if len(c) == 3:
+                c = c + (100,)
+            elif len(c) != 4:
+                raise ValueError("Expected color tuples to be 3 or 4 elements.")
+            colormap[i] = c
+
+        # Insert zero stub color for where mask is zero
+        colormap.insert(0, (0, 0, 0, 0))
 
         # Produce slices (base64 png strings)
         overlay_slices = []
@@ -290,7 +314,7 @@ class VolumeSlicer:
         ]
 
         # Create the figure object - can be accessed by user via slicer.graph.figure
-        self._fig = fig = Figure(data=[])
+        self._fig = fig = plotly.graph_objects.Figure(data=[])
         fig.update_layout(
             template=None,
             margin={"l": 0, "r": 0, "b": 0, "t": 0, "pad": 4},
@@ -300,6 +324,7 @@ class VolumeSlicer:
             showgrid=False,
             showticklabels=False,
             zeroline=False,
+            autorange=True,
             constrain="range",
         )
         fig.update_yaxes(
@@ -318,9 +343,6 @@ class VolumeSlicer:
             config={"scrollZoom": True},
         )
 
-        initial_index = info["size"][2] // 2
-        initial_pos = info["origin"][2] + initial_index * info["spacing"][2]
-
         # Create a slider object that the user can put in the layout (or not).
         # Note that the tooltip introduces a measurable performance penalty,
         # so maybe we can display it in a different way?
@@ -329,7 +351,7 @@ class VolumeSlicer:
             min=0,
             max=info["size"][2] - 1,
             step=1,
-            value=initial_index,
+            value=info["size"][2] // 2,
             updatemode="drag",
             tooltip={"always_visible": False, "placement": "left"},
         )
@@ -359,14 +381,8 @@ class VolumeSlicer:
         # A timer to apply a rate-limit between slider.value and index.data
         self._timer = Interval(id=self._subid("timer"), interval=100, disabled=True)
 
-        # The (integer) index of the slice to show. This value is rate-limited
-        self._index = Store(id=self._subid("index"), data=initial_index)
-
-        # The (float) position (in scene coords) of the current slice,
-        # used to publish our position to slicers with the same scene_id.
-        self._pos = Store(
-            id=self._subid("pos", True, axis=self._axis), data=initial_pos
-        )
+        # The (public) state of the slicer. This value is rate-limited. Initially null.
+        self._state = Store(id=self._subid("state", True), data=None)
 
         # Signal to set the position of other slicers with the same scene_id.
         self._setpos = Store(id=self._subid("setpos", True), data=None)
@@ -379,8 +395,7 @@ class VolumeSlicer:
             self._img_traces,
             self._indicator_traces,
             self._timer,
-            self._index,
-            self._pos,
+            self._state,
             self._setpos,
         ]
 
@@ -390,18 +405,21 @@ class VolumeSlicer:
 
         @app.callback(
             Output(self._server_data.id, "data"),
-            [Input(self._index.id, "data")],
+            [Input(self._state.id, "data")],
         )
-        def upload_requested_slice(slice_index):
-            slice = img_array_to_uri(self._slice(slice_index))
-            return {"index": slice_index, "slice": slice}
+        def upload_requested_slice(state):
+            if state is None or not state["index_changed"]:
+                return dash.no_update
+            index = state["index"]
+            slice = img_array_to_uri(self._slice(index))
+            return {"index": index, "slice": slice}
 
     def _create_client_callbacks(self):
         """Create the callbacks that run client-side."""
 
         # setpos (external)
         #     \
-        #     slider  --[rate limit]-->  index  -->  pos
+        #     slider  --[rate limit]-->  state
         #         \                         \
         #          \                   server_data (a new slice)
         #           \                         \
@@ -411,7 +429,7 @@ class VolumeSlicer:
         #                                                 /
         #                                      indicator_traces
         #                                               /
-        #                                             pos (external)
+        #                                             state (external)
 
         app = self._app
 
@@ -424,7 +442,7 @@ class VolumeSlicer:
             if (data && data.points && data.points.length) {
                 let point = data["points"][0];
                 let xyz = [point["x"], point["y"]];
-                let depth = info.origin[2] + index * info.spacing[2];
+                let depth = info.offset[2] + index * info.stepsize[2];
                 xyz.splice(2 - info.axis, 0, depth);
                 return xyz;
             }
@@ -446,7 +464,7 @@ class VolumeSlicer:
                 if (!trigger.value) continue;
                 let pos = trigger.value[2 - info.axis];
                 if (typeof pos !== 'number') continue;
-                let index = Math.round((pos - info.origin[2]) / info.spacing[2]);
+                let index = Math.round((pos - info.offset[2]) / info.stepsize[2]);
                 if (index == cur_index) continue;
                 return Math.max(0, Math.min(info.size[2] - 1, index));
             }
@@ -472,10 +490,10 @@ class VolumeSlicer:
 
         app.clientside_callback(
             """
-        function update_index_rate_limiting(index, n_intervals, interval) {
+        function update_index_rate_limiting(index, relayoutData, n_intervals, interval, info, figure) {
 
             if (!window._slicer_{{ID}}) window._slicer_{{ID}} = {};
-            let slicer_state = window._slicer_{{ID}};
+            let private_state = window._slicer_{{ID}};
             let now = window.performance.now();
 
             // Get whether the slider was moved
@@ -484,17 +502,57 @@ class VolumeSlicer:
                 if (trigger.prop_id.indexOf('slider') >= 0) slider_was_moved = true;
             }
 
+            // Calculate view range based on the volume
+            let xrangeVol = [
+                info.offset[0] - 0.5 * info.stepsize[0],
+                info.offset[0] + (info.size[0] - 0.5) * info.stepsize[0]
+            ];
+            let yrangeVol = [
+                info.offset[1] - 0.5 * info.stepsize[1],
+                info.offset[1] + (info.size[1] - 0.5) * info.stepsize[1]
+            ];
+
+            // Get view range from the figure. We make range[0] < range[1]
+            let range_was_changed = false;
+            let xrangeFig = figure.layout.xaxis.range
+            let yrangeFig = figure.layout.yaxis.range;
+            if (relayoutData && relayoutData.xaxis && relayoutData.xaxis.range) {
+                xrangeFig = relayoutData.xaxis.range;
+                range_was_changed = true;
+            }
+            if (relayoutData && relayoutData.yaxis && relayoutData.yaxis.range) {
+                yrangeFig = relayoutData.yaxis.range;
+                range_was_changed = true
+            }
+            xrangeFig = [Math.min(xrangeFig[0], xrangeFig[1]), Math.max(xrangeFig[0], xrangeFig[1])];
+            yrangeFig = [Math.min(yrangeFig[0], yrangeFig[1]), Math.max(yrangeFig[0], yrangeFig[1])];
+
+            // Add offset to avoid the corner-indicators for THIS slicer to only be half-visible
+            let plotSize = [400, 400];  // This estimate results in ok results
+            let graphDiv = document.getElementById('{{ID}}-graph');
+            let plotDiv = graphDiv.getElementsByClassName('js-plotly-plot')[0];
+            if (plotDiv && plotDiv._fullLayout)
+                plotSize = [plotDiv._fullLayout.width, plotDiv._fullLayout.height];
+            xrangeFig[0] += 2 * (xrangeFig[1] - xrangeFig[0]) / plotSize[0];
+            xrangeFig[1] -= 2 * (xrangeFig[1] - xrangeFig[0]) / plotSize[0];
+            yrangeFig[0] += 2 * (yrangeFig[1] - yrangeFig[0]) / plotSize[1];
+            yrangeFig[1] -= 2 * (yrangeFig[1] - yrangeFig[0]) / plotSize[1];
+
+            // Combine the ranges
+            let xrange = [Math.max(xrangeVol[0], xrangeFig[0]), Math.min(xrangeVol[1], xrangeFig[1])];
+            let yrange = [Math.max(yrangeVol[0], yrangeFig[0]), Math.min(yrangeVol[1], yrangeFig[1])];
+
             // Initialize return values
-            let req_index = dash_clientside.no_update;
+            let new_state = dash_clientside.no_update;
             let disable_timer = false;
 
             // If the slider moved, remember the time when this happened
-            slicer_state.new_time = slicer_state.new_time || 0;
+            private_state.new_time = private_state.new_time || 0;
 
-            if (slider_was_moved) {
-                slicer_state.new_time = now;
+            if (slider_was_moved || range_was_changed) {
+                private_state.new_time = now;
             } else if (!n_intervals) {
-                disable_timer = true;  // start disabled
+                private_state.new_time = now;
             }
 
             // We can either update the rate-limited index interval ms after
@@ -502,39 +560,43 @@ class VolumeSlicer:
             // changing. The former makes the indicators come along while
             // dragging the slider, the latter is better for a smooth
             // experience, and the interval can be set much lower.
-            if (index != slicer_state.req_index) {
-                if (now - slicer_state.new_time >= interval) {
-                    req_index = slicer_state.req_index = index;
-                    disable_timer = true;
-                    console.log('requesting slice ' + req_index);
+            if (now - private_state.new_time >= interval) {
+                disable_timer = true;
+                new_state = {
+                    index: index,
+                    index_changed: false,
+                    xrange: xrange,
+                    yrange: yrange,
+                    zpos: info.offset[2] + index * info.stepsize[2],
+                    axis: info.axis,
+                    color: info.color,
+                };
+                if (index != private_state.index) {
+                    private_state.index = index;
+                    new_state.index_changed = true;
+                    console.log('requesting slice ' + index);
                 }
             }
 
-            return [req_index, disable_timer];
+            return [new_state, disable_timer];
         }
         """.replace(
                 "{{ID}}", self._context_id
             ),
             [
-                Output(self._index.id, "data"),
+                Output(self._state.id, "data"),
                 Output(self._timer.id, "disabled"),
             ],
-            [Input(self._slider.id, "value"), Input(self._timer.id, "n_intervals")],
-            [State(self._timer.id, "interval")],
-        )
-
-        # ----------------------------------------------------------------------
-        # Callback to update position (in scene coordinates) from the index.
-
-        app.clientside_callback(
-            """
-        function update_pos(index, info) {
-            return info.origin[2] + index * info.spacing[2];
-        }
-        """,
-            Output(self._pos.id, "data"),
-            [Input(self._index.id, "data")],
-            [State(self._info.id, "data")],
+            [
+                Input(self._slider.id, "value"),
+                Input(self._graph.id, "relayoutData"),
+                Input(self._timer.id, "n_intervals"),
+            ],
+            [
+                State(self._timer.id, "interval"),
+                State(self._info.id, "data"),
+                State(self._graph.id, "figure"),
+            ],
         )
 
         # ----------------------------------------------------------------------
@@ -547,10 +609,10 @@ class VolumeSlicer:
             // Prepare traces
             let slice_trace = {
                 type: 'image',
-                x0: info.origin[0],
-                y0: info.origin[1],
-                dx: info.spacing[0],
-                dy: info.spacing[1],
+                x0: info.offset[0],
+                y0: info.offset[1],
+                dx: info.stepsize[0],
+                dy: info.stepsize[1],
                 hovertemplate: '(%{x:.2f}, %{y:.2f})<extra></extra>'
             };
             let overlay_trace = {...slice_trace};
@@ -569,8 +631,8 @@ class VolumeSlicer:
                 // created, the pixel centers may not be correctly aligned.
                 slice_trace.dx *= info.size[0] / info.lowres_size[0];
                 slice_trace.dy *= info.size[1] / info.lowres_size[1];
-                slice_trace.x0 += 0.5 * slice_trace.dx - 0.5 * info.spacing[0];
-                slice_trace.y0 += 0.5 * slice_trace.dy - 0.5 * info.spacing[1];
+                slice_trace.x0 += 0.5 * slice_trace.dx - 0.5 * info.stepsize[0];
+                slice_trace.y0 += 0.5 * slice_trace.dy - 0.5 * info.stepsize[1];
             }
 
             // Has the image data even changed?
@@ -603,50 +665,77 @@ class VolumeSlicer:
 
         app.clientside_callback(
             """
-        function update_indicator_traces(positions1, positions2, info, current) {
-            let x0 = info.origin[0], y0 = info.origin[1];
-            let x1 = x0 + info.size[0] * info.spacing[0], y1 = y0 + info.size[1] * info.spacing[1];
-            x0 = x0 - info.spacing[0], y0 = y0 - info.spacing[1];
-            let d = ((x1 - x0) + (y1 - y0)) * 0.5 * 0.05;
-            let version = (current.version || 0) + 1;
-            let x = [], y = [];
-            for (let pos of positions1) {
-                // x relative to our slice, y in scene-coords
-                x.push(...[x0 - d, x0, null, x1, x1 + d, null]);
-                y.push(...[pos, pos, pos, pos, pos, pos]);
+        function update_indicator_traces(states, info, thisState) {
+            let traces = [];
+
+            for (let state of states) {
+                if (!state) continue;
+                let zpos = [state.zpos, state.zpos];
+                let trace = null;
+                if        (info.axis == 0 && state.axis == 1) {
+                    trace = {x: state.xrange, y: zpos};
+                } else if (info.axis == 0 && state.axis == 2) {
+                    trace = {x: zpos, y: state.xrange};
+                } else if (info.axis == 1 && state.axis == 2) {
+                    trace = {x: zpos, y: state.yrange};
+                } else if (info.axis == 1 && state.axis == 0) {
+                    trace = {x: state.xrange, y: zpos};
+                } else if (info.axis == 2 && state.axis == 0) {
+                    trace = {x: state.yrange, y: zpos};
+                } else if (info.axis == 2 && state.axis == 1) {
+                    trace = {x: zpos, y: state.yrange};
+                }
+                if (trace) {
+                    trace.line = {color: state.color, width: 1};
+                    traces.push(trace);
+                }
             }
-            for (let pos of positions2) {
-                // x in scene-coords, y relative to our slice
-                x.push(...[pos, pos, pos, pos, pos, pos]);
-                y.push(...[y0 - d, y0, null, y1, y1 + d, null]);
+
+            // Show our own color around the image, but only if there are other
+            // slicers with the same scene id, on a different axis. We do some
+            // math to make sure that these indicators are the same size (in
+            // scene coordinates) for all slicers of the same data.
+            if (thisState && info.color && traces.length) {
+                let fraction = 0.1;
+                let lengthx = info.size[0] * info.stepsize[0];
+                let lengthy = info.size[1] * info.stepsize[1];
+                let lengthz = info.size[2] * info.stepsize[2];
+                let dd = fraction * (lengthx + lengthy + lengthz) / 3;  // average
+                dd = Math.min(dd, 0.45 * Math.min(lengthx, lengthy, lengthz));  // failsafe
+                let x1 = thisState.xrange[0];
+                let x2 = thisState.xrange[0] + dd;
+                let x3 = thisState.xrange[1] - dd;
+                let x4 = thisState.xrange[1];
+                let y1 = thisState.yrange[0];
+                let y2 = thisState.yrange[0] + dd;
+                let y3 = thisState.yrange[1] - dd;
+                let y4 = thisState.yrange[1];
+                traces.push({
+                    x: [x1, x1, x2, null, x3, x4, x4, null, x4, x4, x3, null, x2, x1, x1],
+                    y: [y2, y1, y1, null, y1, y1, y2, null, y3, y4, y4, null, y4, y4, y3],
+                    line: {color: info.color, width: 4}
+                });
             }
-            return [{
-                type: 'scatter',
-                mode: 'lines',
-                line: {color: '#ff00aa'},
-                x: x,
-                y: y,
-                hoverinfo: 'skip',
-                version: version
-            }];
+
+            // Post-process the traces we created above
+            for (let trace of traces) {
+                trace.type = 'scatter';
+                trace.mode = 'lines';
+                trace.hoverinfo = 'skip';
+                trace.showlegend = false;
+            }
+            if (thisState) {
+                return traces;
+            } else {
+                return dash_clientside.no_update;
+            }
         }
         """,
             Output(self._indicator_traces.id, "data"),
-            [
-                Input(
-                    {
-                        "scene": self._scene_id,
-                        "context": ALL,
-                        "name": "pos",
-                        "axis": axis,
-                    },
-                    "data",
-                )
-                for axis in self._other_axii
-            ],
+            [Input({"scene": self._scene_id, "context": ALL, "name": "state"}, "data")],
             [
                 State(self._info.id, "data"),
-                State(self._indicator_traces.id, "data"),
+                State(self._state.id, "data"),
             ],
         )
 
@@ -655,26 +744,21 @@ class VolumeSlicer:
 
         app.clientside_callback(
             """
-        function update_figure(img_traces, indicators, ori_figure) {
-
+        function update_figure(img_traces, indicators, info, ori_figure) {
             // Collect traces
             let traces = [];
             for (let trace of img_traces) { traces.push(trace); }
-            for (let trace of indicators) { traces.push(trace); }
-
+            for (let trace of indicators) { if (trace.line.color) traces.push(trace); }
             // Update figure
             let figure = {...ori_figure};
             figure.data = traces;
-
             return figure;
         }
         """,
-            Output(self.graph.id, "figure"),
+            Output(self._graph.id, "figure"),
             [
                 Input(self._img_traces.id, "data"),
                 Input(self._indicator_traces.id, "data"),
             ],
-            [
-                State(self.graph.id, "figure"),
-            ],
+            [State(self._info.id, "data"), State(self._graph.id, "figure")],
         )

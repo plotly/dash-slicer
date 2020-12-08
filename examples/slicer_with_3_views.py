@@ -8,6 +8,7 @@ import dash
 import dash_html_components as html
 import dash_core_components as dcc
 from dash_slicer import VolumeSlicer
+from dash.dependencies import Input, Output, State, ALL
 from skimage.measure import marching_cubes
 import imageio
 
@@ -21,11 +22,13 @@ slicer2 = VolumeSlicer(app, vol, axis=1)
 slicer3 = VolumeSlicer(app, vol, axis=2)
 
 # Calculate isosurface and create a figure with a mesh object
-verts, faces, _, _ = marching_cubes(vol, 300, step_size=2)
+verts, faces, _, _ = marching_cubes(vol, 300, step_size=4)
 x, y, z = verts.T
 i, j, k = faces.T
-fig_mesh = go.Figure()
-fig_mesh.add_trace(go.Mesh3d(x=z, y=y, z=x, opacity=0.2, i=k, j=j, k=i))
+mesh = go.Mesh3d(x=z, y=y, z=x, opacity=0.2, i=k, j=j, k=i)
+fig = go.Figure(data=[mesh])
+fig.update_layout(uirevision="anything")  # prevent orientation reset on update
+
 
 # Put everything together in a 2x2 grid
 app.layout = html.Div(
@@ -62,9 +65,45 @@ app.layout = html.Div(
             ]
         ),
         html.Div(
-            [html.Center(html.H1("3D")), dcc.Graph(id="graph-helper", figure=fig_mesh)]
+            [
+                html.Center(html.H1("3D")),
+                dcc.Graph(id="3Dgraph", figure=fig),
+            ]
         ),
     ],
+)
+
+
+# Callback to display slicer view positions in the 3D view
+app.clientside_callback(
+    """
+function update_3d_figure(states, ori_figure) {
+    let traces = [ori_figure.data[0]]
+    for (let state of states) {
+        if (!state) continue;
+        let xrange = state.xrange;
+        let yrange = state.yrange;
+        let xyz = [
+            [xrange[0], xrange[1], xrange[1], xrange[0], xrange[0]],
+            [yrange[0], yrange[0], yrange[1], yrange[1], yrange[0]],
+            [state.zpos, state.zpos, state.zpos, state.zpos, state.zpos]
+        ];
+        xyz.splice(2 - state.axis, 0, xyz.pop());
+        let s = {
+            type: 'scatter3d',
+            x: xyz[0], y: xyz[1], z: xyz[2],
+            mode: 'lines', line: {color: state.color}
+        };
+        traces.push(s);
+    }
+    let figure = {...ori_figure};
+    figure.data = traces;
+    return figure;
+}
+    """,
+    Output("3Dgraph", "figure"),
+    [Input({"scene": slicer1.scene_id, "context": ALL, "name": "state"}, "data")],
+    [State("3Dgraph", "figure")],
 )
 
 
