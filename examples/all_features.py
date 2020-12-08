@@ -25,18 +25,18 @@ slicer0 = VolumeSlicer(app, vol, spacing=spacing, origin=ori, axis=0, thumbnail=
 slicer1 = VolumeSlicer(
     app, vol, spacing=spacing, origin=ori, axis=1, thumbnail=8, reverse_y=False
 )
-slicer2 = VolumeSlicer(app, vol, spacing=spacing, origin=ori, axis=2, color="#00ff77")
+slicer2 = VolumeSlicer(app, vol, spacing=spacing, origin=ori, axis=2, color="#00ff99")
 
 # Put everything together in a 2x2 grid
 app.layout = html.Div(
     style={
         "display": "grid",
-        "gridTemplateColumns": "40% 40%",
+        "gridTemplateColumns": "33% 33% 33%",
     },
     children=[
         html.Div(
             [
-                html.Center(html.H1("Transversal")),
+                html.Center(html.H1("Axis 0")),
                 slicer0.graph,
                 html.Br(),
                 slicer0.slider,
@@ -45,7 +45,7 @@ app.layout = html.Div(
         ),
         html.Div(
             [
-                html.Center(html.H1("Coronal")),
+                html.Center(html.H1("Axis 1")),
                 slicer1.graph,
                 html.Br(),
                 slicer1.slider,
@@ -54,7 +54,7 @@ app.layout = html.Div(
         ),
         html.Div(
             [
-                html.Center(html.H1("Sagittal")),
+                html.Center(html.H1("Axis 2")),
                 slicer2.graph,
                 html.Br(),
                 slicer2.slider,
@@ -66,6 +66,18 @@ app.layout = html.Div(
                 html.Center(html.H1("3D")),
                 dcc.Graph(id="3Dgraph", figure=go.Figure()),
             ]
+        ),
+        dcc.Markdown(
+            """
+            Take note of:
+            * Full-res thumbnails for axis 0.
+            * Very low-res thumbnails for axis 1.
+            * Default low-res thumbnails for axis 2.
+            * The `reverse_y` is false for axis 1.
+            * Elongated voxels for axis 1 and 2.
+            * An origin in the thousands, visible in the 3D view.
+            * A custom brighter green for axis 2.
+            """
         ),
     ],
 )
