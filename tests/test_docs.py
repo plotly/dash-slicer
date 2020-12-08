@@ -16,8 +16,8 @@ def test_that_the_docs_build():
 def test_that_docs_are_up_to_date():
     filename = os.path.join(os.path.dirname(HERE), "README.md")
     assert os.path.isfile(filename)
-    with open(filename, "rt", encoding="utf-8") as f:
-        text = f.read()
+    with open(filename, "rb") as f:
+        text = f.read().decode()
     _, _, ref = text.partition("## Reference")
     ref1 = ref.strip()
     ref2 = get_reference_docs().strip()

@@ -35,7 +35,9 @@ def get_reference_docs():
     methods = []
     props = []
 
-    sig = str(inspect.signature(dash_slicer.VolumeSlicer.__init__)).replace("self, ", "")
+    sig = str(inspect.signature(dash_slicer.VolumeSlicer.__init__)).replace(
+        "self, ", ""
+    )
     doc = f"**class `VolumeSlicer{sig}`**"
     doc += "\n\n" + dedent(dash_slicer.VolumeSlicer.__doc__)
     methods.append(doc)
@@ -74,12 +76,13 @@ def write_reference_docs():
     header = "## Reference"
     filename = os.path.join(os.path.dirname(HERE), "README.md")
     assert os.path.isfile(filename), "README.md not found"
-    with open(filename, "rt", encoding="utf-8") as f:
-        text = f.read()
+    with open(filename, "rb") as f:
+        text = f.read().decode()
     text, _, _ = text.partition(header)
     text = text.rstrip() + "\n\n\n" + header + "\n\n" + get_reference_docs()
-    with open(filename, "wt", encoding="utf-8") as f:
-        f.write(text)
+    with open(filename, "wb") as f:
+        f.write(text.encode())
+    print("Wrote to README.md")
 
 
 if __name__ == "__main__":

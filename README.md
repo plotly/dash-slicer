@@ -64,7 +64,7 @@ the package.
 
 ### The VolumeSlicer class
 
-**class `VolumeSlicer(app, volume, *, spacing=None, origin=None, axis=0, reverse_y=True, scene_id=None, color=None)`**
+**class `VolumeSlicer(app, volume, *, spacing=None, origin=None, axis=0, reverse_y=True, scene_id=None, color=None, thumbnail=True)`**
 
 A slicer object to show 3D image data in Dash. Upon
 instantiation one can provide the following parameters:
@@ -87,6 +87,10 @@ instantiation one can provide the following parameters:
 * `color` (`str`): the color for this slicer. By default the color is
   red, green, or blue, depending on the axis. Set to empty string
   for "no color".
+* thumbnail (int or bool): linear size of low-resolution data to be
+  uploaded to the client. If ``False``, the full-resolution data are
+  uploaded client-side. If ``True`` (default), a default value of 32 is
+  used.
 
 Note that this is not a Dash component. The components that make
 up the slicer (and which must be present in the layout) are:
