@@ -28,20 +28,21 @@ import dash_html_components as html
 from dash_slicer import VolumeSlicer
 import imageio
 
-app = dash.Dash(__name__)
+app = dash.Dash(__name__, update_title=None)
 
 vol = imageio.volread("imageio:stent.npz")
 slicer = VolumeSlicer(app, vol)
+
 app.layout = html.Div([slicer.graph, slicer.slider, *slicer.stores])
 
 if __name__ == "__main__":
-    app.run_server()
+    app.run_server(debug=True, dev_tools_props_check=False)
 ```
 
 
 ## License
 
-This code is distributed under MIT license.
+This code is distributed under the MIT license.
 
 
 ## Developers
@@ -49,7 +50,7 @@ This code is distributed under MIT license.
 
 * Make sure that you have Python with the appropriate dependencies installed, e.g. via `venv`.
 * Run `pip install -e .` to do an in-place install of the package.
-* Run the examples using e.g. `python examples/slicer_with_1_view.py`
+* Run the examples using e.g. `python examples/all_features.py`
 
 * Use `black .` to autoformat.
 * Use `flake8 .` to lint.
