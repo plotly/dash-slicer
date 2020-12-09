@@ -737,6 +737,7 @@ class VolumeSlicer:
                 State(self._info.id, "data"),
                 State(self._state.id, "data"),
             ],
+            prevent_initial_call=True,
         )
 
         # ----------------------------------------------------------------------
