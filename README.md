@@ -146,7 +146,8 @@ These must be added to the app layout.
 
 It is possible to get notified of updates to slicer position and
 view ranges. To get this for all slicers with a specific scene_id, create
-a [pattern matching input](https://dash.plotly.com/pattern-matching-callbacks) like this:
+a [pattern matching input](https://dash.plotly.com/pattern-matching-callbacks)
+like this:
 ```py
 Input({"scene": scene_id, "context": ALL, "name": "state"})
 ```
@@ -181,3 +182,4 @@ experience. Here are some tips to help with that:
 * For a smooth experience, avoid triggering unnecessary figure updates.
 * When adding a callback that uses the slicer position, use the (rate limited)
   `state` store rather than the slider value.
+

@@ -7,7 +7,8 @@
 
 It is possible to get notified of updates to slicer position and
 view ranges. To get this for all slicers with a specific scene_id, create
-a pattern matching input like this:
+a [pattern matching input](https://dash.plotly.com/pattern-matching-callbacks)
+like this:
 ```py
 Input({"scene": scene_id, "context": ALL, "name": "state"})
 ```
