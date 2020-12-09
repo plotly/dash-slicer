@@ -54,7 +54,7 @@ This code is distributed under MIT license.
 * Use `black .` to autoformat.
 * Use `flake8 .` to lint.
 * Use `pytest .` to run the tests.
-* Use `python dash_slicer\docs.py` to update the ref docs in the readme.
+* Use `python update_docs_in_readme.py` to update the readme when needed.
 
 On every PR, an app with the same name as your branch is deployed to the Dash
 playground instance so that you can change whether your changes did not break
@@ -88,7 +88,7 @@ instantiation one can provide the following parameters:
 * `color` (`str`): the color for this slicer. By default the color is
   red, green, or blue, depending on the axis. Set to empty string
   for "no color".
-* `thumbnail` (`int` or `bool`): linear size of low-resolution data to be
+* `thumbnail` (`int` or `bool`): preferred size of low-resolution data to be
   uploaded to the client. If `False`, the full-resolution data are
   uploaded client-side. If `True` (default), a default value of 32 is
   used.

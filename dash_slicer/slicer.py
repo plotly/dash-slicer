@@ -61,7 +61,6 @@ _assigned_scene_ids = {}  # id(volume) -> str
 
 
 class VolumeSlicer:
-<<<<<<< HEAD
     """A slicer object to show 3D image data in Dash. Upon
     instantiation one can provide the following parameters:
 

@@ -2,12 +2,8 @@
 Utilities to produce simple reference docs (in Markdown) from the source code.
 """
 
-import os
 import inspect
-
 import dash_slicer
-
-HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def dedent(text):
@@ -74,21 +70,3 @@ def get_reference_docs():
     parts += props
     parts.append(dash_slicer.slicer.__doc__)
     return "\n\n".join(parts)
-
-
-def write_reference_docs():
-    """Write the reference docs to the README."""
-    header = "## Reference"
-    filename = os.path.join(os.path.dirname(HERE), "README.md")
-    assert os.path.isfile(filename), "README.md not found"
-    with open(filename, "rb") as f:
-        text = f.read().decode()
-    text, _, _ = text.partition(header)
-    text = text.rstrip() + "\n\n\n" + header + "\n\n" + get_reference_docs()
-    with open(filename, "wb") as f:
-        f.write(text.encode())
-    print("Wrote to README.md")
-
-
-if __name__ == "__main__":
-    write_reference_docs()
