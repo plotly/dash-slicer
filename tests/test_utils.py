@@ -31,8 +31,8 @@ def test_img_array_to_uri():
     im = np.random.uniform(0, 255, (100, 100)).astype(np.uint8)
 
     r1 = img_array_to_uri(im)
-    r2 = img_array_to_uri(im, (32, 32))
-    r3 = img_array_to_uri(im, (8, 8))
+    r2 = img_array_to_uri(im, 32)
+    r3 = img_array_to_uri(im, 8)
 
     for r in (r1, r2, r3):
         assert isinstance(r, str)
@@ -43,9 +43,10 @@ def test_img_array_to_uri():
 
 def test_get_thumbnail_size():
 
-    assert get_thumbnail_size((100, 100), (16, 16)) == (16, 16)
-    assert get_thumbnail_size((50, 100), (16, 16)) == (8, 16)
-    assert get_thumbnail_size((100, 100), (8, 16)) == (8, 8)
+    assert get_thumbnail_size((100, 100), 16) == (16, 16)
+    assert get_thumbnail_size((50, 100), 16) == (16, 32)
+    assert get_thumbnail_size((100, 100), 8) == (8, 8)
+    assert get_thumbnail_size((100, 50), 8) == (16, 8)
 
 
 def test_shape3d_to_size2d():

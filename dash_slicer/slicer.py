@@ -35,7 +35,7 @@ class VolumeSlicer:
       color (str): the color for this slicer. By default the color is
         red, green, or blue, depending on the axis. Set to empty string
         for "no color".
-      thumbnail (int or bool): linear size of low-resolution data to be
+      thumbnail (int or bool): preferred size of low-resolution data to be
         uploaded to the client. If ``False``, the full-resolution data are
         uploaded client-side. If ``True`` (default), a default value of 32 is
         used.
@@ -108,12 +108,18 @@ class VolumeSlicer:
         # Check and store thumbnail
         if not (isinstance(thumbnail, (int, bool))):
             raise ValueError("thumbnail must be a boolean or an integer.")
-        # No thumbnail if thumbnail size is larger than image size
-        if isinstance(thumbnail, int) and thumbnail > np.max(volume.shape):
-            thumbnail = False
-        if thumbnail is True:
-            thumbnail = 32  # default size
-        self._thumbnail = thumbnail
+        if thumbnail is False:
+            self._thumbnail = False
+        elif thumbnail is None or thumbnail is True:
+            self._thumbnail = 32  # default size
+        else:
+            thumbnail = int(thumbnail)
+            if thumbnail >= np.max(volume.shape[:3]):
+                self._thumbnail = False  # dont go larger than image size
+            elif thumbnail <= 0:
+                self._thumbnail = False  # consider 0 and -1 the same as False
+            else:
+                self._thumbnail = thumbnail
 
         # Check and store scene id, and generate
         if scene_id is None:
@@ -299,15 +305,16 @@ class VolumeSlicer:
         """Create the graph, slider, figure, etc."""
         info = self._slice_info
 
-        # Prep low-res slices
-        if self._thumbnail is False:
+        # Prep low-res slices. The get_thumbnail_size() is a bit like
+        # a simulation to get the low-res size.
+        if not self._thumbnail:
             thumbnail_size = None
-            info["lowres_size"] = info["size"]
+            info["thumbnail_size"] = info["size"]
         else:
-            thumbnail_size = get_thumbnail_size(
-                info["size"][:2], (self._thumbnail, self._thumbnail)
+            thumbnail_size = self._thumbnail
+            info["thumbnail_size"] = get_thumbnail_size(
+                info["size"][:2], thumbnail_size
             )
-            info["lowres_size"] = thumbnail_size
         thumbnails = [
             img_array_to_uri(self._slice(i), thumbnail_size)
             for i in range(info["size"][2])
@@ -361,8 +368,8 @@ class VolumeSlicer:
         # A dict of static info for this slicer
         self._info = Store(id=self._subid("info"), data=info)
 
-        # A list of low-res slices (encoded as base64-png)
-        self._lowres_data = Store(id=self._subid("lowres"), data=thumbnails)
+        # A list of low-res slices, or the full-res data (encoded as base64-png)
+        self._thumbs_data = Store(id=self._subid("thumbs"), data=thumbnails)
 
         # A list of mask slices (encoded as base64-png or null)
         self._overlay_data = Store(id=self._subid("overlay"), data=[])
@@ -389,7 +396,7 @@ class VolumeSlicer:
 
         self._stores = [
             self._info,
-            self._lowres_data,
+            self._thumbs_data,
             self._overlay_data,
             self._server_data,
             self._img_traces,
@@ -490,16 +497,20 @@ class VolumeSlicer:
 
         app.clientside_callback(
             """
-        function update_index_rate_limiting(index, relayoutData, n_intervals, interval, info, figure) {
+        function update_index_rate_limiting(index, relayoutData, n_intervals, info, figure) {
 
             if (!window._slicer_{{ID}}) window._slicer_{{ID}} = {};
             let private_state = window._slicer_{{ID}};
             let now = window.performance.now();
 
             // Get whether the slider was moved
-            let slider_was_moved = false;
+            let slider_value_changed = false;
+            let graph_layout_changed = false;
+            let timer_ticked = false;
             for (let trigger of dash_clientside.callback_context.triggered) {
-                if (trigger.prop_id.indexOf('slider') >= 0) slider_was_moved = true;
+                if (trigger.prop_id.indexOf('slider') >= 0) slider_value_changed = true;
+                if (trigger.prop_id.indexOf('graph') >= 0) graph_layout_changed = true;
+                if (trigger.prop_id.indexOf('timer') >= 0) timer_ticked = true;
             }
 
             // Calculate view range based on the volume
@@ -513,17 +524,8 @@ class VolumeSlicer:
             ];
 
             // Get view range from the figure. We make range[0] < range[1]
-            let range_was_changed = false;
             let xrangeFig = figure.layout.xaxis.range
             let yrangeFig = figure.layout.yaxis.range;
-            if (relayoutData && relayoutData.xaxis && relayoutData.xaxis.range) {
-                xrangeFig = relayoutData.xaxis.range;
-                range_was_changed = true;
-            }
-            if (relayoutData && relayoutData.yaxis && relayoutData.yaxis.range) {
-                yrangeFig = relayoutData.yaxis.range;
-                range_was_changed = true
-            }
             xrangeFig = [Math.min(xrangeFig[0], xrangeFig[1]), Math.max(xrangeFig[0], xrangeFig[1])];
             yrangeFig = [Math.min(yrangeFig[0], yrangeFig[1]), Math.max(yrangeFig[0], yrangeFig[1])];
 
@@ -549,18 +551,25 @@ class VolumeSlicer:
             // If the slider moved, remember the time when this happened
             private_state.new_time = private_state.new_time || 0;
 
-            if (slider_was_moved || range_was_changed) {
+
+            if (slider_value_changed) {
                 private_state.new_time = now;
+                private_state.timeout = 200;
+            } else if (graph_layout_changed) {
+                private_state.new_time = now;
+                private_state.timeout = 400;  // need longer timeout for smooth scroll zoom
             } else if (!n_intervals) {
                 private_state.new_time = now;
+                private_state.timeout = 100;
             }
 
-            // We can either update the rate-limited index interval ms after
-            // the real index changed, or interval ms after it stopped
+            // We can either update the rate-limited index timeout ms after
+            // the real index changed, or timeout ms after it stopped
             // changing. The former makes the indicators come along while
             // dragging the slider, the latter is better for a smooth
-            // experience, and the interval can be set much lower.
-            if (now - private_state.new_time >= interval) {
+            // experience, and the timeout can be set much lower.
+            if (private_state.timeout && timer_ticked && now - private_state.new_time >= private_state.timeout) {
+                private_state.timeout = 0;
                 disable_timer = true;
                 new_state = {
                     index: index,
@@ -574,7 +583,6 @@ class VolumeSlicer:
                 if (index != private_state.index) {
                     private_state.index = index;
                     new_state.index_changed = true;
-                    console.log('requesting slice ' + index);
                 }
             }
 
@@ -593,7 +601,6 @@ class VolumeSlicer:
                 Input(self._timer.id, "n_intervals"),
             ],
             [
-                State(self._timer.id, "interval"),
                 State(self._info.id, "data"),
                 State(self._graph.id, "figure"),
             ],
@@ -604,7 +611,7 @@ class VolumeSlicer:
 
         app.clientside_callback(
             """
-        function update_image_traces(index, server_data, overlays, lowres, info, current_traces) {
+        function update_image_traces(index, server_data, overlays, thumbnails, info, current_traces) {
 
             // Prepare traces
             let slice_trace = {
@@ -621,16 +628,16 @@ class VolumeSlicer:
             overlay_trace.hovertemplate = '';
             let new_traces = [slice_trace, overlay_trace];
 
-            // Use full data, or use lowres
+            // Use full data, or use thumbnails
             if (index == server_data.index) {
                 slice_trace.source = server_data.slice;
             } else {
-                slice_trace.source = lowres[index];
+                slice_trace.source = thumbnails[index];
                 // Scale the image to take the exact same space as the full-res
                 // version. Note that depending on how the low-res data is
                 // created, the pixel centers may not be correctly aligned.
-                slice_trace.dx *= info.size[0] / info.lowres_size[0];
-                slice_trace.dy *= info.size[1] / info.lowres_size[1];
+                slice_trace.dx *= info.size[0] / info.thumbnail_size[0];
+                slice_trace.dy *= info.size[1] / info.thumbnail_size[1];
                 slice_trace.x0 += 0.5 * slice_trace.dx - 0.5 * info.stepsize[0];
                 slice_trace.y0 += 0.5 * slice_trace.dy - 0.5 * info.stepsize[1];
             }
@@ -654,7 +661,7 @@ class VolumeSlicer:
                 Input(self._overlay_data.id, "data"),
             ],
             [
-                State(self._lowres_data.id, "data"),
+                State(self._thumbs_data.id, "data"),
                 State(self._info.id, "data"),
                 State(self._img_traces.id, "data"),
             ],
@@ -737,6 +744,7 @@ class VolumeSlicer:
                 State(self._info.id, "data"),
                 State(self._state.id, "data"),
             ],
+            prevent_initial_call=True,
         )
 
         # ----------------------------------------------------------------------
