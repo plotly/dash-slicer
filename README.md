@@ -28,20 +28,21 @@ import dash_html_components as html
 from dash_slicer import VolumeSlicer
 import imageio
 
-app = dash.Dash(__name__)
+app = dash.Dash(__name__, update_title=None)
 
 vol = imageio.volread("imageio:stent.npz")
 slicer = VolumeSlicer(app, vol)
+
 app.layout = html.Div([slicer.graph, slicer.slider, *slicer.stores])
 
 if __name__ == "__main__":
-    app.run_server()
+    app.run_server(debug=True, dev_tools_props_check=False)
 ```
 
 
 ## License
 
-This code is distributed under MIT license.
+This code is distributed under the MIT license.
 
 
 ## Developers
@@ -49,7 +50,7 @@ This code is distributed under MIT license.
 
 * Make sure that you have Python with the appropriate dependencies installed, e.g. via `venv`.
 * Run `pip install -e .` to do an in-place install of the package.
-* Run the examples using e.g. `python examples/slicer_with_1_view.py`
+* Run the examples using e.g. `python examples/all_features.py`
 
 * Use `black .` to autoformat.
 * Use `flake8 .` to lint.
@@ -74,26 +75,26 @@ instantiation one can provide the following parameters:
 * `volume` (`ndarray`): the 3D numpy array to slice through. The dimensions
   are assumed to be in zyx order. If this is not the case, you can
   use `np.swapaxes` to make it so.
-* `spacing` (tuple of `float`): The distance between voxels for each
-  dimension (zyx).The spacing and origin are applied to make the slice
+* `spacing` (tuple of `float`): the distance between voxels for each
+  dimension (zyx). The spacing and origin are applied to make the slice
   drawn in "scene space" rather than "voxel space".
-* `origin` (tuple of `float`): The offset for each dimension (zyx).
+* `origin` (tuple of `float`): the offset for each dimension (zyx).
 * `axis` (`int`): the dimension to slice in. Default 0.
-* `reverse_y` (`bool`): Whether to reverse the y-axis, so that the origin of
+* `reverse_y` (`bool`): whether to reverse the y-axis, so that the origin of
   the slice is in the top-left, rather than bottom-left. Default True.
-  Note: setting this to False affects performance, see #12.
+  Note: setting this to False affects performance, see #12. This has been
+  fixed, but the fix has not yet been released with Dash.
 * `scene_id` (`str`): the scene that this slicer is part of. Slicers
   that have the same scene-id show each-other's positions with
   line indicators. By default this is derived from `id(volume)`.
-* `color` (`str`): the color for this slicer. By default the color is
-  red, green, or blue, depending on the axis. Set to empty string
-  for "no color".
-* `thumbnail` (`int` or `bool`): preferred size of low-resolution data to be
-  uploaded to the client. If `False`, the full-resolution data are
-  uploaded client-side. If `True` (default), a default value of 32 is
-  used.
+* `color` (`str`): the color for this slicer. By default the color
+  is a shade of blue, orange, or green, depending on the axis. Set
+  to empty string to prevent drawing indicators for this slicer.
+* `thumbnail` (`int` or `bool`): the preferred size of low-resolution data
+  to be uploaded to the client. If `False`, the full-resolution data are
+  uploaded client-side. If `True` (default), a default value of 32 is used.
 
-Note that this is not a Dash component. The components that make
+Note that this is not a Dash Component. The components that make
 up the slicer (and which must be present in the layout) are:
 `slicer.graph`, `slicer.slider`, and `slicer.stores`.
 
@@ -104,7 +105,7 @@ can be used as output for `slicer.overlay_data`. The color
 can be a hex color or an rgb/rgba tuple. Alternatively, color
 can be a list of such colors, defining a colormap.
 
-**property `VolumeSlicer.axis`** (`int`): The axis at which the slicer is slicing.
+**property `VolumeSlicer.axis`** (`int`): The axis to slice.
 
 **property `VolumeSlicer.graph`**: The `dcc.Graph` for this slicer. Use `graph.figure` to access the
 Plotly Figure object.
@@ -171,8 +172,8 @@ To apply the position for one dimension only, use e.g `(None, None, x)`.
 ### Performance tips
 
 There tends to be a lot of interaction in an application that contains
-slicer objects. Therefore, performance matters to realize a smooth user
-experience. Here are some tips to help with that:
+slicer objects. To realize a smooth user experience, performance matters.
+Here are some tips to help with that:
 
 * Most importantly, when running the server in debug mode, consider setting
   `dev_tools_props_check=False`.
