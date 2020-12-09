@@ -490,16 +490,20 @@ class VolumeSlicer:
 
         app.clientside_callback(
             """
-        function update_index_rate_limiting(index, relayoutData, n_intervals, interval, info, figure) {
+        function update_index_rate_limiting(index, relayoutData, n_intervals, info, figure) {
 
             if (!window._slicer_{{ID}}) window._slicer_{{ID}} = {};
             let private_state = window._slicer_{{ID}};
             let now = window.performance.now();
 
             // Get whether the slider was moved
-            let slider_was_moved = false;
+            let slider_value_changed = false;
+            let graph_layout_changed = false;
+            let timer_ticked = false;
             for (let trigger of dash_clientside.callback_context.triggered) {
-                if (trigger.prop_id.indexOf('slider') >= 0) slider_was_moved = true;
+                if (trigger.prop_id.indexOf('slider') >= 0) slider_value_changed = true;
+                if (trigger.prop_id.indexOf('graph') >= 0) graph_layout_changed = true;
+                if (trigger.prop_id.indexOf('timer') >= 0) timer_ticked = true;
             }
 
             // Calculate view range based on the volume
@@ -513,17 +517,8 @@ class VolumeSlicer:
             ];
 
             // Get view range from the figure. We make range[0] < range[1]
-            let range_was_changed = false;
             let xrangeFig = figure.layout.xaxis.range
             let yrangeFig = figure.layout.yaxis.range;
-            if (relayoutData && relayoutData.xaxis && relayoutData.xaxis.range) {
-                xrangeFig = relayoutData.xaxis.range;
-                range_was_changed = true;
-            }
-            if (relayoutData && relayoutData.yaxis && relayoutData.yaxis.range) {
-                yrangeFig = relayoutData.yaxis.range;
-                range_was_changed = true
-            }
             xrangeFig = [Math.min(xrangeFig[0], xrangeFig[1]), Math.max(xrangeFig[0], xrangeFig[1])];
             yrangeFig = [Math.min(yrangeFig[0], yrangeFig[1]), Math.max(yrangeFig[0], yrangeFig[1])];
 
@@ -549,18 +544,25 @@ class VolumeSlicer:
             // If the slider moved, remember the time when this happened
             private_state.new_time = private_state.new_time || 0;
 
-            if (slider_was_moved || range_was_changed) {
+
+            if (slider_value_changed) {
                 private_state.new_time = now;
+                private_state.timeout = 200;
+            } else if (graph_layout_changed) {
+                private_state.new_time = now;
+                private_state.timeout = 400;  // need longer timeout for smooth scroll zoom
             } else if (!n_intervals) {
                 private_state.new_time = now;
+                private_state.timeout = 100;
             }
 
-            // We can either update the rate-limited index interval ms after
-            // the real index changed, or interval ms after it stopped
+            // We can either update the rate-limited index timeout ms after
+            // the real index changed, or timeout ms after it stopped
             // changing. The former makes the indicators come along while
             // dragging the slider, the latter is better for a smooth
-            // experience, and the interval can be set much lower.
-            if (now - private_state.new_time >= interval) {
+            // experience, and the timeout can be set much lower.
+            if (private_state.timeout && timer_ticked && now - private_state.new_time >= private_state.timeout) {
+                private_state.timeout = 0;
                 disable_timer = true;
                 new_state = {
                     index: index,
@@ -574,7 +576,6 @@ class VolumeSlicer:
                 if (index != private_state.index) {
                     private_state.index = index;
                     new_state.index_changed = true;
-                    console.log('requesting slice ' + index);
                 }
             }
 
@@ -593,7 +594,6 @@ class VolumeSlicer:
                 Input(self._timer.id, "n_intervals"),
             ],
             [
-                State(self._timer.id, "interval"),
                 State(self._info.id, "data"),
                 State(self._graph.id, "figure"),
             ],
