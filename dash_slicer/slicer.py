@@ -309,10 +309,12 @@ class VolumeSlicer:
         # a simulation to get the low-res size.
         if not self._thumbnail:
             thumbnail_size = None
-            info["lowres_size"] = info["size"]
+            info["thumbnail_size"] = info["size"]
         else:
             thumbnail_size = self._thumbnail
-            info["lowres_size"] = get_thumbnail_size(info["size"][:2], thumbnail_size)
+            info["thumbnail_size"] = get_thumbnail_size(
+                info["size"][:2], thumbnail_size
+            )
         thumbnails = [
             img_array_to_uri(self._slice(i), thumbnail_size)
             for i in range(info["size"][2])
@@ -366,8 +368,8 @@ class VolumeSlicer:
         # A dict of static info for this slicer
         self._info = Store(id=self._subid("info"), data=info)
 
-        # A list of low-res slices (encoded as base64-png)
-        self._lowres_data = Store(id=self._subid("lowres"), data=thumbnails)
+        # A list of low-res slices, or the full-res data (encoded as base64-png)
+        self._thumbs_data = Store(id=self._subid("thumbs"), data=thumbnails)
 
         # A list of mask slices (encoded as base64-png or null)
         self._overlay_data = Store(id=self._subid("overlay"), data=[])
@@ -394,7 +396,7 @@ class VolumeSlicer:
 
         self._stores = [
             self._info,
-            self._lowres_data,
+            self._thumbs_data,
             self._overlay_data,
             self._server_data,
             self._img_traces,
@@ -609,7 +611,7 @@ class VolumeSlicer:
 
         app.clientside_callback(
             """
-        function update_image_traces(index, server_data, overlays, lowres, info, current_traces) {
+        function update_image_traces(index, server_data, overlays, thumbnails, info, current_traces) {
 
             // Prepare traces
             let slice_trace = {
@@ -626,16 +628,16 @@ class VolumeSlicer:
             overlay_trace.hovertemplate = '';
             let new_traces = [slice_trace, overlay_trace];
 
-            // Use full data, or use lowres
+            // Use full data, or use thumbnails
             if (index == server_data.index) {
                 slice_trace.source = server_data.slice;
             } else {
-                slice_trace.source = lowres[index];
+                slice_trace.source = thumbnails[index];
                 // Scale the image to take the exact same space as the full-res
                 // version. Note that depending on how the low-res data is
                 // created, the pixel centers may not be correctly aligned.
-                slice_trace.dx *= info.size[0] / info.lowres_size[0];
-                slice_trace.dy *= info.size[1] / info.lowres_size[1];
+                slice_trace.dx *= info.size[0] / info.thumbnail_size[0];
+                slice_trace.dy *= info.size[1] / info.thumbnail_size[1];
                 slice_trace.x0 += 0.5 * slice_trace.dx - 0.5 * info.stepsize[0];
                 slice_trace.y0 += 0.5 * slice_trace.dy - 0.5 * info.stepsize[1];
             }
@@ -659,7 +661,7 @@ class VolumeSlicer:
                 Input(self._overlay_data.id, "data"),
             ],
             [
-                State(self._lowres_data.id, "data"),
+                State(self._thumbs_data.id, "data"),
                 State(self._info.id, "data"),
                 State(self._img_traces.id, "data"),
             ],
