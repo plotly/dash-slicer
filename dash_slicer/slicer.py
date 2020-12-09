@@ -35,7 +35,7 @@ class VolumeSlicer:
       color (str): the color for this slicer. By default the color is
         red, green, or blue, depending on the axis. Set to empty string
         for "no color".
-      thumbnail (int or bool): linear size of low-resolution data to be
+      thumbnail (int or bool): preferred size of low-resolution data to be
         uploaded to the client. If ``False``, the full-resolution data are
         uploaded client-side. If ``True`` (default), a default value of 32 is
         used.
@@ -108,12 +108,18 @@ class VolumeSlicer:
         # Check and store thumbnail
         if not (isinstance(thumbnail, (int, bool))):
             raise ValueError("thumbnail must be a boolean or an integer.")
-        # No thumbnail if thumbnail size is larger than image size
-        if isinstance(thumbnail, int) and thumbnail > np.max(volume.shape):
-            thumbnail = False
-        if thumbnail is True:
-            thumbnail = 32  # default size
-        self._thumbnail = thumbnail
+        if thumbnail is False:
+            self._thumbnail = False
+        elif thumbnail is None or thumbnail is True:
+            self._thumbnail = 32  # default size
+        else:
+            thumbnail = int(thumbnail)
+            if thumbnail >= np.max(volume.shape[:3]):
+                self._thumbnail = False  # dont go larger than image size
+            elif thumbnail <= 0:
+                self._thumbnail = False  # consider 0 and -1 the same as False
+            else:
+                self._thumbnail = thumbnail
 
         # Check and store scene id, and generate
         if scene_id is None:
@@ -299,15 +305,14 @@ class VolumeSlicer:
         """Create the graph, slider, figure, etc."""
         info = self._slice_info
 
-        # Prep low-res slices
-        if self._thumbnail is False:
+        # Prep low-res slices. The get_thumbnail_size() is a bit like
+        # a simulation to get the low-res size.
+        if not self._thumbnail:
             thumbnail_size = None
             info["lowres_size"] = info["size"]
         else:
-            thumbnail_size = get_thumbnail_size(
-                info["size"][:2], (self._thumbnail, self._thumbnail)
-            )
-            info["lowres_size"] = thumbnail_size
+            thumbnail_size = self._thumbnail
+            info["lowres_size"] = get_thumbnail_size(info["size"][:2], thumbnail_size)
         thumbnails = [
             img_array_to_uri(self._slice(i), thumbnail_size)
             for i in range(info["size"][2])
