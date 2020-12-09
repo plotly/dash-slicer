@@ -1,3 +1,51 @@
+# The docstring below is used as part of the reference docs. It describes
+# the parts that cannot be described well via the properties and methods.
+
+"""
+
+### Reacting to slicer state
+
+It is possible to get notified of updates to slicer position and
+view ranges. To get this for all slicers with a specific scene_id, create
+a [pattern matching input](https://dash.plotly.com/pattern-matching-callbacks)
+like this:
+```py
+Input({"scene": scene_id, "context": ALL, "name": "state"})
+```
+
+See the `state` property for details.
+
+
+### Setting slicer positions
+
+To programatically set the position of the slicer, create a `dcc.Store` with
+a dictionary-id that has the following fields:
+
+* 'context': a unique name for this store.
+* 'scene': the scene_id of the slicer objects to set the position for.
+* 'name': 'setpos'
+
+The value in the store must be an 3-element tuple (x, y, z) in scene coordinates.
+To apply the position for one dimension only, use e.g `(None, None, x)`.
+
+
+### Performance tips
+
+There tends to be a lot of interaction in an application that contains
+slicer objects. Therefore, performance matters to realize a smooth user
+experience. Here are some tips to help with that:
+
+* Most importantly, when running the server in debug mode, consider setting
+  `dev_tools_props_check=False`.
+* Also consider creating the `Dash` application with `update_title=None`.
+* Setting `reverse_y` to False negatively affects performance. This will be
+  fixed in a future version of Plotly/Dash.
+* For a smooth experience, avoid triggering unnecessary figure updates.
+* When adding a callback that uses the slicer position, use the (rate limited)
+  `state` store rather than the slider value.
+
+"""
+
 import numpy as np
 import plotly.graph_objects
 import dash
@@ -14,60 +62,35 @@ _assigned_scene_ids = {}  # id(volume) -> str
 
 
 class VolumeSlicer:
-    """A slicer to show 3D image data in Dash.
+    """A slicer object to show 3D image data in Dash. Upon
+    instantiation one can provide the following parameters:
 
-    Parameters:
-      app (dash.Dash): the Dash application instance.
-      volume (ndarray): the 3D numpy array to slice through. The dimensions
-        are assumed to be in zyx order. If this is not the case, you can
-        use ``np.swapaxes`` to make it so.
-      spacing (tuple of floats): The distance between voxels for each
-        dimension (zyx).The spacing and origin are applied to make the slice
-        drawn in "scene space" rather than "voxel space".
-      origin (tuple of floats): The offset for each dimension (zyx).
-      axis (int): the dimension to slice in. Default 0.
-      reverse_y (bool): Whether to reverse the y-axis, so that the origin of
-        the slice is in the top-left, rather than bottom-left. Default True.
-        Note: setting this to False affects performance, see #12.
-      scene_id (str): the scene that this slicer is part of. Slicers
-        that have the same scene-id show each-other's positions with
-        line indicators. By default this is derived from ``id(volume)``.
-      color (str): the color for this slicer. By default the color is
-        red, green, or blue, depending on the axis. Set to empty string
-        for "no color".
-      thumbnail (int or bool): preferred size of low-resolution data to be
-        uploaded to the client. If ``False``, the full-resolution data are
-        uploaded client-side. If ``True`` (default), a default value of 32 is
-        used.
+    * `app` (`dash.Dash`): the Dash application instance.
+    * `volume` (`ndarray`): the 3D numpy array to slice through. The dimensions
+      are assumed to be in zyx order. If this is not the case, you can
+      use `np.swapaxes` to make it so.
+    * `spacing` (tuple of `float`): The distance between voxels for each
+      dimension (zyx).The spacing and origin are applied to make the slice
+      drawn in "scene space" rather than "voxel space".
+    * `origin` (tuple of `float`): The offset for each dimension (zyx).
+    * `axis` (`int`): the dimension to slice in. Default 0.
+    * `reverse_y` (`bool`): Whether to reverse the y-axis, so that the origin of
+      the slice is in the top-left, rather than bottom-left. Default True.
+      Note: setting this to False affects performance, see #12.
+    * `scene_id` (`str`): the scene that this slicer is part of. Slicers
+      that have the same scene-id show each-other's positions with
+      line indicators. By default this is derived from `id(volume)`.
+    * `color` (`str`): the color for this slicer. By default the color is
+      red, green, or blue, depending on the axis. Set to empty string
+      for "no color".
+    * `thumbnail` (`int` or `bool`): preferred size of low-resolution data to be
+      uploaded to the client. If `False`, the full-resolution data are
+      uploaded client-side. If `True` (default), a default value of 32 is
+      used.
 
-    This is a placeholder object, not a Dash component. The components
-    that make up the slicer can be accessed as attributes. These must all
-    be present in the app layout:
-
-    * ``graph``: the dcc.Graph object. Use ``graph.figure`` to access the
-      Plotly Figure object.
-    * ``slider``: the dcc.Slider object, its value represents the slice
-      index. If you don't want to use the slider, wrap it in a div with
-      style ``display: none``.
-    * ``stores``: a list of dcc.Store objects.
-
-    To programatically set the position of the slicer, use a store with
-    a dictionary-id with the following fields:
-
-    * 'context': a unique name for this store.
-    * 'scene': the scene_id for which to set the position
-    * 'name': 'setpos'
-
-    The value in the store must be an 3-element tuple (x, y, z) in scene coordinates.
-    To apply the position for one position only, use e.g ``(None, None, x)``.
-
-    Some notes on performance: for a smooth experience, avoid triggering
-    unnecessary figure updates. When adding a callback that uses the
-    slicer position, use the (rate limited) `index` and `pos` stores
-    rather than the slider value. Further, create the `Dash` application
-    with `update_title=None`, and when running the server in debug mode,
-    consider setting `dev_tools_props_check=False`.
-
+    Note that this is not a Dash component. The components that make
+    up the slicer (and which must be present in the layout) are:
+    `slicer.graph`, `slicer.slider`, and `slicer.stores`.
     """
 
     _global_slicer_counter = 0
@@ -158,62 +181,74 @@ class VolumeSlicer:
     # Note(AK): we could make some stores public, but let's do this only when actual use-cases arise?
 
     @property
-    def scene_id(self):
+    def scene_id(self) -> str:
         """The id of the "virtual scene" for this slicer. Slicers that have
         the same scene_id show each-other's positions.
         """
         return self._scene_id
 
     @property
-    def axis(self):
+    def axis(self) -> int:
         """The axis at which the slicer is slicing."""
         return self._axis
 
     @property
-    def nslices(self):
+    def nslices(self) -> int:
         """The number of slices for this slicer."""
         return self._volume.shape[self._axis]
 
     @property
     def graph(self):
-        """The dcc.Graph for this slicer."""
+        """The `dcc.Graph` for this slicer. Use `graph.figure` to access the
+        Plotly Figure object.
+        """
         return self._graph
 
     @property
     def slider(self):
-        """The dcc.Slider to change the index for this slicer."""
+        """The `dcc.Slider` to change the index for this slicer. If you
+        don't want to use the slider, wrap it in a div with style
+        `display: none`.
+        """
         return self._slider
 
     @property
     def stores(self):
-        """A list of dcc.Store objects that the slicer needs to work.
+        """A list of `dcc.Store` objects that the slicer needs to work.
         These must be added to the app layout.
         """
         return self._stores
 
     @property
     def state(self):
-        """A dcc.Store representing the current state of the slicer (present
-        in slicer.stores). Its data is a dict with the fields: index (int),
-        index_changed (bool), xrange (2 floats), yrange (2 floats),
-        zpos (float), axis (int), color (str).
+        """A `dcc.Store` representing the current state of the slicer (present
+        in slicer.stores). Its data is a dict with the fields:
 
-        Its id is a dictionary so it can be used in a pattern matching Input.
-        Fields: context, scene, name. Where scene is the scene_id and name is "state".
+        * "index": the integer slice index.
+        * "index_changed": a bool indicating whether the index changed since last time.
+        * "xrange": the view range (2 floats) in the x-dimension (2D).
+        * "yrange": the view range (2 floats) in the y-dimension (2D).
+        * "zpos": the float position aling the axis, in scene coordinates.
+        * "axis": the axis (int) for this slicer.
+        * "color": the color (str) for this slicer.
+
+        The id of the store is a dictionary so it can be used in a
+        pattern matching Input. Its field are: context, scene, name.
+        Where scene is the scene_id and name is "state".
         """
         return self._state
 
     @property
     def overlay_data(self):
-        """A dcc.Store containing the overlay data. The form of this
+        """A `dcc.Store` containing the overlay data. The form of this
         data is considered an implementation detail; users are expected to use
-        ``create_overlay_data`` to create it.
+        `create_overlay_data` to create it.
         """
         return self._overlay_data
 
     def create_overlay_data(self, mask, color=None):
         """Given a 3D mask array and an index, create an object that
-        can be used as output for ``slicer.overlay_data``. The color
+        can be used as output for `slicer.overlay_data`. The color
         can be a hex color or an rgb/rgba tuple. Alternatively, color
         can be a list of such colors, defining a colormap.
         """
