@@ -100,10 +100,10 @@ up the slicer (and which must be present in the layout) are:
 
 **method `VolumeSlicer.create_overlay_data(mask, color=None)`**
 
-Given a 3D mask array and an index, create an object that
-can be used as output for `slicer.overlay_data`. The color
-can be a hex color or an rgb/rgba tuple. Alternatively, color
-can be a list of such colors, defining a colormap.
+Given a 3D mask array, create an object that can be used as
+output for `slicer.overlay_data`. Set mask to `None` to clear the mask.
+The color can be a hex color or an rgb/rgba tuple. Alternatively,
+color can be a list of such colors, defining a colormap.
 
 **property `VolumeSlicer.axis`** (`int`): The axis to slice.
 
