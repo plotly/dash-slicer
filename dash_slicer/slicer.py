@@ -272,6 +272,15 @@ class VolumeSlicer:
         return self._state
 
     @property
+    def extra_traces(self):
+        """A `dcc.Store` that can be used as an output to define
+        additional traces to be shown in this slicer. The data must be
+        a list of dictionaries, with each dict representing a raw trace
+        object.
+        """
+        return self._extra_traces
+
+    @property
     def overlay_data(self):
         """A `dcc.Store` containing the overlay data. The form of this
         data is considered an implementation detail; users are expected to use
@@ -453,6 +462,9 @@ class VolumeSlicer:
         # Store indicator traces for the slicer.
         self._indicator_traces = Store(id=self._subid("indicator-traces"), data=[])
 
+        # Store user traces for the slider.
+        self._extra_traces = Store(id=self._subid("extra-traces"), data=[])
+
         # A timer to apply a rate-limit between slider.value and index.data
         self._timer = Interval(id=self._subid("timer"), interval=100, disabled=True)
 
@@ -469,6 +481,7 @@ class VolumeSlicer:
             self._server_data,
             self._img_traces,
             self._indicator_traces,
+            self._extra_traces,
             self._timer,
             self._state,
             self._setpos,
@@ -820,11 +833,12 @@ class VolumeSlicer:
 
         app.clientside_callback(
             """
-        function update_figure(img_traces, indicators, info, ori_figure) {
+        function update_figure(img_traces, indicator_traces, extra_traces, info, ori_figure) {
             // Collect traces
             let traces = [];
             for (let trace of img_traces) { traces.push(trace); }
-            for (let trace of indicators) { if (trace.line.color) traces.push(trace); }
+            for (let trace of extra_traces) { traces.push(trace); }
+            for (let trace of indicator_traces) { if (trace.line.color) traces.push(trace); }
             // Update figure
             let figure = {...ori_figure};
             figure.data = traces;
@@ -835,6 +849,7 @@ class VolumeSlicer:
             [
                 Input(self._img_traces.id, "data"),
                 Input(self._indicator_traces.id, "data"),
+                Input(self._extra_traces.id, "data"),
             ],
             [State(self._info.id, "data"), State(self._graph.id, "figure")],
         )

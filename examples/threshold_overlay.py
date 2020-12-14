@@ -22,13 +22,6 @@ vol = imageio.volread("imageio:stent.npz")
 mi, ma = vol.min(), vol.max()
 slicer = VolumeSlicer(app, vol)
 
-slicer.graph.config.update(
-    modeBarButtonsToAdd=[
-        "drawclosedpath",
-        "eraseshape",
-    ]
-)
-
 
 app.layout = html.Div(
     [

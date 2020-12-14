@@ -107,6 +107,11 @@ can be a list of such colors, defining a colormap.
 
 **property `VolumeSlicer.axis`** (`int`): The axis to slice.
 
+**property `VolumeSlicer.extra_traces`**: A `dcc.Store` that can be used as an output to define
+additional traces to be shown in this slicer. The data must be
+a list of dictionaries, with each dict representing a raw trace
+object.
+
 **property `VolumeSlicer.graph`**: The `dcc.Graph` for this slicer. Use `graph.figure` to access the
 Plotly Figure object.
 
