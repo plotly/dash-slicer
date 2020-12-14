@@ -1,4 +1,4 @@
-![CI](https://github.com/pygfx/wgpu-py/workflows/CI/badge.svg)
+![CI](https://github.com/plotly/dash-slicer/workflows/CI/badge.svg)
 
 # dash_slicer
 
