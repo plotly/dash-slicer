@@ -1,8 +1,8 @@
 """
 An example demonstrating adding traces.
 
-This shows a volume with a contour overlaid on top. The `extra_traces`
-property is used to add scatter traces that represent the contour.
+This shows a volume with contours overlaid on top. The `extra_traces`
+property is used to add scatter traces that represent the contours.
 """
 
 import plotly
@@ -48,9 +48,9 @@ def apply_levels(level, state):
         return dash.no_update
     slice = vol[state["index"]]
     contours = measure.find_contours(slice, level)
+    # Create a trace for each contour, each a different color
     traces = []
     for i, contour in enumerate(contours):
-        # Create a trace for each contour, each a different color
         colors = plotly.colors.qualitative.D3
         color = colors[i % len(colors)]
         traces.append(
