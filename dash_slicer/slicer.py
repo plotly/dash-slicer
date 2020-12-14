@@ -46,6 +46,39 @@ Here are some tips to help with that:
 
 """
 
+# ### Developer notes ###
+#
+# ## Linking of slicers
+#
+# The approach that has been taken is to let users create a VolumeSlicer
+# for each view to be created. To still allow different slicers to be
+# aware of each-other, we gratefully make use of dict-id's and pattern
+# matching inputs. This also adds a lot of flexibility to the number
+# of views that a user wants to create. To prevent all slicers in an
+# application to be linked, we introduce the concept of a scene_id,
+# which is simply a field in the dict ids to filter by.
+#
+# ## Synchronizing slicer figures
+#
+# It's tempting to let changes made in one slicer (e.g. changing the
+# slice index) to directly take effect in the other slicers. However,
+# this causes a lot of figure updates, which quickly makes the
+# interaction jerky. Instead, a rate-limited `state` is created, for
+# other slicers (and application code) to react to. This helps allocate
+# most CPU cycles for the interaction of the current slicer, creating
+# a smooth experience. For similar reasons, synchronizing e.g. view
+# ranges between multiple slicers would be challenging.
+#
+# ## The slider.value is part of the flow
+#
+# The slider can be used to set the index, but we also want to allow
+# setting the index from the outside. To avoid a circular flow, the
+# slider.value *is* the reference index. Therefore the slider must be
+# present in the layout, and must be hidden (not omitted) if the user
+# does not want it. It may be possible to work around this, but right
+# now this seems by far the easiest solution :)
+
+
 import numpy as np
 import plotly.graph_objects
 import dash
