@@ -5,6 +5,7 @@ This shows a volume with a contour overlaid on top. The `extra_traces`
 property is used to add scatter traces that represent the contour.
 """
 
+import plotly
 import dash
 import dash_html_components as html
 import dash_core_components as dcc
@@ -48,12 +49,15 @@ def apply_levels(level, state):
     slice = vol[state["index"]]
     contours = measure.find_contours(slice, level)
     traces = []
-    for contour in contours:
+    for i, contour in enumerate(contours):
+        # Create a trace for each contour, each a different color
+        colors = plotly.colors.qualitative.D3
+        color = colors[i % len(colors)]
         traces.append(
             {
                 "type": "scatter",
                 "mode": "lines",
-                "line": {"color": "cyan", "width": 3},
+                "line": {"color": color, "width": 3},
                 "x": contour[:, 1],
                 "y": contour[:, 0],
             }
