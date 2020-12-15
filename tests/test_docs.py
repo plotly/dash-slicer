@@ -1,6 +1,6 @@
 import os
 
-from dash_slicer.docs import get_reference_docs
+from dash_slicer.docs import get_reference_docs, md_seperator
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -18,7 +18,7 @@ def test_that_reference_docs_in_readme_are_up_to_date():
     assert os.path.isfile(filename)
     with open(filename, "rb") as f:
         text = f.read().decode()
-    _, _, ref = text.partition("## Reference")
+    _, _, ref = text.partition(md_seperator)
     ref1 = ref.strip().replace("\r\n", "\n")
     ref2 = get_reference_docs().strip()
     assert (
