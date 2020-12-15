@@ -111,6 +111,8 @@ class VolumeSlicer:
       the slice is in the top-left, rather than bottom-left. Default True.
       Note: setting this to False affects performance, see #12. This has been
       fixed, but the fix has not yet been released with Dash.
+    * `clim` (tuple of `float`): the (initial) contrast limits. Default the min
+      and max of the volume.
     * `scene_id` (`str`): the scene that this slicer is part of. Slicers
       that have the same scene-id show each-other's positions with
       line indicators. By default this is derived from `id(volume)`.
@@ -137,6 +139,7 @@ class VolumeSlicer:
         origin=None,
         axis=0,
         reverse_y=True,
+        clim=None,
         scene_id=None,
         color=None,
         thumbnail=True,
@@ -160,6 +163,14 @@ class VolumeSlicer:
             raise ValueError("The given axis must be 0, 1, or 2.")
         self._axis = int(axis)
         self._reverse_y = bool(reverse_y)
+
+        # Check and store contrast limits
+        if clim is None:
+            self._initial_clim = self._volume.min(), self._volume.max()
+        elif isinstance(clim, (tuple, list)) and len(clim) == 2:
+            self._initial_clim = float(clim[0]), float(clim[1])
+        else:
+            raise ValueError("The clim must be None or a 2-tuple of floats.")
 
         # Check and store thumbnail
         if not (isinstance(thumbnail, (int, bool))):
@@ -272,6 +283,14 @@ class VolumeSlicer:
         return self._state
 
     @property
+    def clim(self):
+        """A `dcc.Store` representing the contrast limits as a 2-element tuple.
+        This value should probably not be changed too often (e.g. on slider drag)
+        because the thumbnail data is recreated on each change.
+        """
+        return self._clim
+
+    @property
     def extra_traces(self):
         """A `dcc.Store` that can be used as an output to define
         additional traces to be shown in this slicer. The data must be
@@ -377,12 +396,18 @@ class VolumeSlicer:
             assert not kwargs
             return self._context_id + "-" + name
 
-    def _slice(self, index):
+    def _slice(self, index, clim):
         """Sample a slice from the volume."""
+        # Sample from the volume
         indices = [slice(None), slice(None), slice(None)]
         indices[self._axis] = index
-        im = self._volume[tuple(indices)]
-        return (im.astype(np.float32) * (255 / im.max())).astype(np.uint8)
+        im = self._volume[tuple(indices)].astype(np.float32)
+        # Apply contrast limits
+        clim = min(clim), max(clim)
+        im = (im - clim[0]) * (255 / (clim[1] - clim[0]))
+        im[im < 0] = 0
+        im[im > 255] = 255
+        return im.astype(np.uint8)
 
     def _create_dash_components(self):
         """Create the graph, slider, figure, etc."""
@@ -391,17 +416,13 @@ class VolumeSlicer:
         # Prep low-res slices. The get_thumbnail_size() is a bit like
         # a simulation to get the low-res size.
         if not self._thumbnail:
-            thumbnail_size = None
+            self._thumbnail_size_param = None
             info["thumbnail_size"] = info["size"]
         else:
-            thumbnail_size = self._thumbnail
+            self._thumbnail_size_param = self._thumbnail
             info["thumbnail_size"] = get_thumbnail_size(
-                info["size"][:2], thumbnail_size
+                info["size"][:2], self._thumbnail_size_param
             )
-        thumbnails = [
-            img_array_to_uri(self._slice(i), thumbnail_size)
-            for i in range(info["size"][2])
-        ]
 
         # Create the figure object - can be accessed by user via slicer.graph.figure
         self._fig = fig = plotly.graph_objects.Figure(data=[])
@@ -451,8 +472,11 @@ class VolumeSlicer:
         # A dict of static info for this slicer
         self._info = Store(id=self._subid("info"), data=info)
 
+        # A list of contrast limits
+        self._clim = Store(id=self._subid("clim"), data=self._initial_clim)
+
         # A list of low-res slices, or the full-res data (encoded as base64-png)
-        self._thumbs_data = Store(id=self._subid("thumbs"), data=thumbnails)
+        self._thumbs_data = Store(id=self._subid("thumbs"), data=[])
 
         # A list of mask slices (encoded as base64-png or null)
         self._overlay_data = Store(id=self._subid("overlay"), data=[])
@@ -482,6 +506,7 @@ class VolumeSlicer:
 
         self._stores = [
             self._info,
+            self._clim,
             self._thumbs_data,
             self._overlay_data,
             self._server_data,
@@ -498,14 +523,25 @@ class VolumeSlicer:
         app = self._app
 
         @app.callback(
-            Output(self._server_data.id, "data"),
-            [Input(self._state.id, "data")],
+            Output(self._thumbs_data.id, "data"),
+            [Input(self._clim.id, "data")],
         )
-        def upload_requested_slice(state):
+        def upload_thumbnails(clim):
+            thumbnail_size = self._thumbnail_size_param
+            return [
+                img_array_to_uri(self._slice(i, clim), thumbnail_size)
+                for i in range(self.nslices)
+            ]
+
+        @app.callback(
+            Output(self._server_data.id, "data"),
+            [Input(self._state.id, "data"), Input(self._clim.id, "data")],
+        )
+        def upload_requested_slice(state, clim):
             if state is None or not state["index_changed"]:
                 return dash.no_update
             index = state["index"]
-            slice = img_array_to_uri(self._slice(index))
+            slice = img_array_to_uri(self._slice(index, clim))
             return {"index": index, "slice": slice}
 
     def _create_client_callbacks(self):
