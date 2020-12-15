@@ -20,7 +20,7 @@ server = app.server
 
 vol = imageio.volread("imageio:stent.npz")
 mi, ma = vol.min(), vol.max()
-slicer = VolumeSlicer(app, vol)
+slicer = VolumeSlicer(app, vol, clim=(0, 800))
 
 
 app.layout = html.Div(

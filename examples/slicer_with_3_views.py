@@ -17,9 +17,9 @@ server = app.server
 
 # Read volumes and create slicer objects
 vol = imageio.volread("imageio:stent.npz")
-slicer0 = VolumeSlicer(app, vol, axis=0)
-slicer1 = VolumeSlicer(app, vol, axis=1)
-slicer2 = VolumeSlicer(app, vol, axis=2)
+slicer0 = VolumeSlicer(app, vol, clim=(0, 800), axis=0)
+slicer1 = VolumeSlicer(app, vol, clim=(0, 800), axis=1)
+slicer2 = VolumeSlicer(app, vol, clim=(0, 800), axis=2)
 
 # Calculate isosurface and create a figure with a mesh object
 verts, faces, _, _ = marching_cubes(vol, 300, step_size=4)
