@@ -22,7 +22,19 @@ setpos_store = dcc.Store(
 slicer_list = [setpos_store]
 for sidx, slicer in enumerate([slicer0, slicer1, slicer2]):
     slider = dcc.Slider(id=f"slider-{sidx}", max=slicer.nslices)
-    slicer_list.append(html.Div([slicer.graph, slicer.slider, slider, *slicer.stores,]))
+    slicer_list.append(
+        html.Div(
+            [
+                html.Pre("slicer graph"),
+                slicer.graph,
+                html.Pre("builtin slider"),
+                slicer.slider,
+                html.Pre("auxiliary slider"),
+                slider,
+                *slicer.stores,
+            ]
+        )
+    )
 
 # Create a small CSS grid with Input fields and text labels to both display
 # the slicer axis positions and allow the user to interactively change them
