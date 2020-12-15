@@ -63,3 +63,43 @@ def test_scene_id_and_context_id():
 
     # Context id's must be unique
     assert s1._context_id != s2._context_id and s1._context_id != s3._context_id
+
+
+def test_create_overlay_data():
+
+    app = dash.Dash()
+    vol = np.random.uniform(0, 255, (100, 100, 100)).astype(np.uint8)
+    s = VolumeSlicer(app, vol)
+
+    # Bool overlay
+    overlay = s.create_overlay_data(vol > 10)
+    assert isinstance(overlay, list) and len(overlay) == s.nslices
+    assert all(isinstance(x, str) for x in overlay)
+
+    # Bool overlay - with color
+    overlay = s.create_overlay_data(vol > 10, "#ff0000")
+    assert isinstance(overlay, list) and len(overlay) == s.nslices
+    assert all(isinstance(x, str) for x in overlay)
+
+    # Uint8 overlay - with colormap
+    overlay = s.create_overlay_data(vol.astype(np.uint8), ["#ff0000", "#00ff00"])
+    assert isinstance(overlay, list) and len(overlay) == s.nslices
+    assert all(isinstance(x, str) for x in overlay)
+
+    # Reset
+    overlay = s.create_overlay_data(None)
+    assert isinstance(overlay, list) and len(overlay) == s.nslices
+    assert all(x is None for x in overlay)
+
+    # Reset by zero mask
+    overlay = s.create_overlay_data(vol > 300)
+    assert isinstance(overlay, list) and len(overlay) == s.nslices
+    assert all(x is None for x in overlay)
+
+    # Wrong
+    with raises(TypeError):
+        s.create_overlay_data("not a valid mask")
+    with raises(ValueError):
+        s.create_overlay_data(vol.astype(np.float32))  # wrong dtype
+    with raises(ValueError):
+        s.create_overlay_data(vol[:-1])  # wrong shape

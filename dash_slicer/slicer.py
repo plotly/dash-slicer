@@ -289,15 +289,19 @@ class VolumeSlicer:
         return self._overlay_data
 
     def create_overlay_data(self, mask, color=None):
-        """Given a 3D mask array and an index, create an object that
-        can be used as output for `slicer.overlay_data`. The color
-        can be a hex color or an rgb/rgba tuple. Alternatively, color
-        can be a list of such colors, defining a colormap.
+        """Given a 3D mask array, create an object that can be used as
+        output for `slicer.overlay_data`. Set mask to `None` to clear the mask.
+        The color can be a hex color or an rgb/rgba tuple. Alternatively,
+        color can be a list of such colors, defining a colormap.
         """
         # Check the mask
-        if mask.dtype not in (np.bool, np.uint8):
+        if mask is None:
+            return [None for index in range(self.nslices)]  # A reset
+        elif not isinstance(mask, np.ndarray):
+            raise TypeError("Mask must be an ndarray or None.")
+        elif mask.dtype not in (np.bool, np.uint8):
             raise ValueError(f"Mask must have bool or uint8 dtype, not {mask.dtype}.")
-        if mask.shape != self._volume.shape:
+        elif mask.shape != self._volume.shape:
             raise ValueError(
                 f"Overlay must has shape {mask.shape}, but expected {self._volume.shape}"
             )
@@ -306,6 +310,8 @@ class VolumeSlicer:
         # Create a colormap (list) from the given color(s)
         if color is None:
             colormap = discrete_colors[3:]
+        elif isinstance(color, str):
+            colormap = [color]
         elif isinstance(color, (tuple, list)) and all(
             isinstance(x, (int, float)) for x in color
         ):
