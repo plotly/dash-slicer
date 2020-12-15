@@ -4,6 +4,12 @@
 
 A volume slicer for Dash
 
+Create slice views along a given dimension, and allows multiple such
+views to be linked, to help with navigation. Supports anisotropic data,
+mask overlays, and more.
+
+<img width='400' src='https://user-images.githubusercontent.com/3015475/102207234-0c91d100-3ece-11eb-8a2b-6846a4281931.png'></img>
+
 
 ## Status
 
