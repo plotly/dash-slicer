@@ -17,56 +17,72 @@ setpos_store = dcc.Store(
     id={"context": "app", "scene": slicer0.scene_id, "name": "setpos"}
 )
 
+# Here we create an auxiliary slider for each slicer and encapsulate it inside a Div
+# to be added to the app layout
 slicer_list = [setpos_store]
 for sidx, slicer in enumerate([slicer0, slicer1, slicer2]):
     slider = dcc.Slider(id=f"slider-{sidx}", max=slicer.nslices)
-    slicer_list.append(html.Div([slicer.graph, html.Div([slicer.slider, slider], style={"display": "none"}), *slicer.stores]))
+    slicer_list.append(html.Div([slicer.graph, slicer.slider, slider, *slicer.stores,]))
 
-nav_table = html.Div([
-    html.Div(""),
-    html.Div("Voxel position"),
-    html.Div("X axis"),
-    dcc.Input(id="x-nav", type="number", placeholder="X value"),
-    html.Div("Y axis"),
-    dcc.Input(id="y-nav", type="number", placeholder="Y value"),
-    html.Div("Z axis"),
-    dcc.Input(id="z-nav", type="number", placeholder="Z value"),
-], style={"display": "grid", "gridTemplateColumns": "10% 10%"})
+# Create a small CSS grid with Input fields and text labels to both display
+# the slicer axis positions and allow the user to interactively change them
+nav_table = html.Div(
+    [
+        html.Div(""),
+        html.Div("Voxel position"),
+        html.Div("X axis"),
+        dcc.Input(id="x-nav", type="number", placeholder="X value"),
+        html.Div("Y axis"),
+        dcc.Input(id="y-nav", type="number", placeholder="Y value"),
+        html.Div("Z axis"),
+        dcc.Input(id="z-nav", type="number", placeholder="Z value"),
+    ],
+    style={"display": "grid", "gridTemplateColumns": "10% 10%"},
+)
 slicer_list.append(nav_table)
 
-app.layout = html.Div(style={
-    "display": "grid",
-    "gridTemplateColumns": "33% 33% 33%",
-}, children=slicer_list)
+app.layout = html.Div(
+    style={"display": "grid", "gridTemplateColumns": "33% 33% 33%",},
+    children=slicer_list,
+)
 
 
+# Take the current value from the main slider and copy it to the
+# auxiliary slider
 @app.callback(
-    [Output("slider-0", "value"),
-     Output("slider-1", "value"),
-     Output("slider-2", "value")],
-    [Input(slicer0.slider.id, "drag_value"),
-     Input(slicer1.slider.id, "drag_value"),
-     Input(slicer2.slider.id, "drag_value")],
+    [
+        Output("slider-0", "value"),
+        Output("slider-1", "value"),
+        Output("slider-2", "value"),
+    ],
+    [
+        Input(slicer0.slider.id, "drag_value"),
+        Input(slicer1.slider.id, "drag_value"),
+        Input(slicer2.slider.id, "drag_value"),
+    ],
 )
 def write_to_auxiliary_slider(x_slider, y_slider, z_slider):
     return x_slider, y_slider, z_slider
 
 
+# Write the values of the axiliary slider to the input fields in the navigation table
 @app.callback(
     [Output("x-nav", "value"), Output("y-nav", "value"), Output("z-nav", "value")],
-    [Input("slider-0", "value"), Input("slider-1", "value"), Input("slider-2", "value")],
+    [
+        Input("slider-0", "value"),
+        Input("slider-1", "value"),
+        Input("slider-2", "value"),
+    ],
 )
 def write_to_position_table(x_val, y_val, z_val):
     return x_val, y_val, z_val
 
 
+# Listen for a user-triggered change to the value of the Input fields in the navigation table
+# and set the position of the slicer accordingly
 @app.callback(
     Output(setpos_store.id, "data"),
-    [
-        Input("x-nav", "value"),
-        Input("y-nav", "value"),
-        Input("z-nav", "value"),
-     ],
+    [Input("x-nav", "value"), Input("y-nav", "value"), Input("z-nav", "value"),],
 )
 def write_table_values_to_slicer(x_pos, y_pos, z_pos):
     return z_pos, y_pos, x_pos
