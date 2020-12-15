@@ -574,25 +574,80 @@ class VolumeSlicer:
         )
 
         # ----------------------------------------------------------------------
-        # Callback to rate-limit the index (using a timer/interval).
+        # Callback to rate-limit the state (using a timer/interval).
+        # This callback has as input anything that defines the state. The callback
+        # checks what was changed, sets a timeout, and enables the timer.
 
         app.clientside_callback(
             """
-        function update_index_rate_limiting(index, relayoutData, n_intervals, info, figure) {
+        function update_rate_limiting_info(index, relayoutData, n_intervals) {
 
             if (!window._slicer_{{ID}}) window._slicer_{{ID}} = {};
             let private_state = window._slicer_{{ID}};
             let now = window.performance.now();
 
-            // Get whether the slider was moved
+            // Get whether the slider was moved, layout was changed, or timer ticked
             let slider_value_changed = false;
             let graph_layout_changed = false;
             let timer_ticked = false;
             for (let trigger of dash_clientside.callback_context.triggered) {
                 if (trigger.prop_id.indexOf('slider') >= 0) slider_value_changed = true;
-                if (trigger.prop_id.indexOf('graph') >= 0) graph_layout_changed = true;
                 if (trigger.prop_id.indexOf('timer') >= 0) timer_ticked = true;
+                if (trigger.prop_id.indexOf('graph') >= 0) {
+                    for (let key in relayoutData) {
+                        if (key.startsWith("xaxis.range") || key.startsWith("yaxis.range")) {
+                            graph_layout_changed = true;
+                        }
+                    }
+                }
             }
+
+            // Set timeout and whether to disable the timer
+            let disable_timer = false;
+            if (slider_value_changed) {
+                private_state.timeout = now + 200;
+            } else if (graph_layout_changed) {
+                private_state.timeout = now + 400;  // need longer timeout for smooth scroll zoom
+            } else if (!n_intervals) {
+                private_state.timeout = now + 100;  // initialize
+            } else if (!private_state.timeout) {
+                disable_timer = true;
+            }
+
+            return disable_timer;
+        }
+        """.replace(
+                "{{ID}}", self._context_id
+            ),
+            Output(self._timer.id, "disabled"),
+            [
+                Input(self._slider.id, "value"),
+                Input(self._graph.id, "relayoutData"),
+                Input(self._timer.id, "n_intervals"),
+            ],
+        )
+
+        # ----------------------------------------------------------------------
+        # Callback to produce the (rate-limited) state.
+        # Note how this callback only has the interval as input. This breaks
+        # any loops in applications that want to both get and set the slicer
+        # position.
+
+        app.clientside_callback(
+            """
+        function update_state(n_intervals, index, info, figure) {
+
+            if (!window._slicer_{{ID}}) window._slicer_{{ID}} = {};
+            let private_state = window._slicer_{{ID}};
+            let now = window.performance.now();
+
+            // Ready to apply and stop the timer, or return early?
+            if (!(private_state.timeout && now >= private_state.timeout)) {
+                return dash_clientside.no_update;
+            }
+
+            // Disable the timer
+            private_state.timeout = 0;
 
             // Calculate view range based on the volume
             let xrangeVol = [
@@ -625,66 +680,35 @@ class VolumeSlicer:
             let xrange = [Math.max(xrangeVol[0], xrangeFig[0]), Math.min(xrangeVol[1], xrangeFig[1])];
             let yrange = [Math.max(yrangeVol[0], yrangeFig[0]), Math.min(yrangeVol[1], yrangeFig[1])];
 
-            // Initialize return values
-            let new_state = dash_clientside.no_update;
-            let disable_timer = false;
-
-            // If the slider moved, remember the time when this happened
-            private_state.new_time = private_state.new_time || 0;
-
-
-            if (slider_value_changed) {
-                private_state.new_time = now;
-                private_state.timeout = 200;
-            } else if (graph_layout_changed) {
-                private_state.new_time = now;
-                private_state.timeout = 400;  // need longer timeout for smooth scroll zoom
-            } else if (!n_intervals) {
-                private_state.new_time = now;
-                private_state.timeout = 100;
+            // Create new state
+            let new_state = {
+                index: index,
+                index_changed: false,
+                xrange: xrange,
+                yrange: yrange,
+                zpos: info.offset[2] + index * info.stepsize[2],
+                axis: info.axis,
+                color: info.color,
+            };
+            if (index != private_state.last_index) {
+                private_state.last_index = index;
+                new_state.index_changed = true;
             }
-
-            // We can either update the rate-limited index timeout ms after
-            // the real index changed, or timeout ms after it stopped
-            // changing. The former makes the indicators come along while
-            // dragging the slider, the latter is better for a smooth
-            // experience, and the timeout can be set much lower.
-            if (private_state.timeout && timer_ticked && now - private_state.new_time >= private_state.timeout) {
-                private_state.timeout = 0;
-                disable_timer = true;
-                new_state = {
-                    index: index,
-                    index_changed: false,
-                    xrange: xrange,
-                    yrange: yrange,
-                    zpos: info.offset[2] + index * info.stepsize[2],
-                    axis: info.axis,
-                    color: info.color,
-                };
-                if (index != private_state.index) {
-                    private_state.index = index;
-                    new_state.index_changed = true;
-                }
-            }
-
-            return [new_state, disable_timer];
+            return new_state;
         }
         """.replace(
                 "{{ID}}", self._context_id
             ),
+            Output(self._state.id, "data"),
             [
-                Output(self._state.id, "data"),
-                Output(self._timer.id, "disabled"),
-            ],
-            [
-                Input(self._slider.id, "value"),
-                Input(self._graph.id, "relayoutData"),
                 Input(self._timer.id, "n_intervals"),
             ],
             [
+                State(self._slider.id, "value"),
                 State(self._info.id, "data"),
                 State(self._graph.id, "figure"),
             ],
+            # prevent_initial_call=True,
         )
 
         # ----------------------------------------------------------------------
