@@ -1,8 +1,12 @@
+"""
+This is an example that shows how the slicer position can be both read from and written to 
+by listening to the "drag_value" of the default slider with an auxiliary slider
+"""
 import dash
 import dash_html_components as html
 from dash_slicer import VolumeSlicer
 import dash_core_components as dcc
-from dash.dependencies import Input, Output, State, ALL
+from dash.dependencies import Input, Output
 import imageio
 
 
