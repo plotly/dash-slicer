@@ -8,7 +8,7 @@ Create slice views along a given dimension, and allows multiple such
 views to be linked, to help with navigation. Supports anisotropic data,
 mask overlays, and more.
 
-<img width='400' src='https://user-images.githubusercontent.com/3015475/102207234-0c91d100-3ece-11eb-8a2b-6846a4281931.png'></img>
+<img width='700' src='https://user-images.githubusercontent.com/3015475/102329845-28a67880-3f89-11eb-82de-2cc2ff463a53.png'></img>
 
 
 ## Status
@@ -44,6 +44,11 @@ app.layout = html.Div([slicer.graph, slicer.slider, *slicer.stores])
 if __name__ == "__main__":
     app.run_server(debug=True, dev_tools_props_check=False)
 ```
+
+See [the guide](https://dash.plotly.com/slicer) for more examples and explanations.
+A complete app that uses dash-slicer is [dash-vocid-xray](https://dash-gallery.plotly.host/dash-covid-xray/)
+([source](https://github.com/plotly/dash-sample-apps/blob/master/apps/dash-covid-xray/app.py)).
+
 
 
 ## License
