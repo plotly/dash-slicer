@@ -258,14 +258,16 @@ class VolumeSlicer:
     @property
     def stores(self):
         """A list of `dcc.Store` objects that the slicer needs to work.
-        These must be added to the app layout.
+        These must be added to the app layout. Note that public stores
+        like `state` and `extra_traces` are also present in this list.
         """
         return self._stores
 
     @property
     def state(self):
         """A `dcc.Store` representing the current state of the slicer (present
-        in slicer.stores). Its data is a dict with the fields:
+        in slicer.stores). This store is intended for use as State or Input.
+        Its data is a dict with the fields:
 
         * "index": the integer slice index.
         * "index_changed": a bool indicating whether the index changed since last time.
@@ -291,18 +293,17 @@ class VolumeSlicer:
 
     @property
     def extra_traces(self):
-        """A `dcc.Store` that can be used as an output to define
-        additional traces to be shown in this slicer. The data must be
-        a list of dictionaries, with each dict representing a raw trace
-        object.
+        """A `dcc.Store` to be used as an Output to define additional
+        traces to be shown in this slicer. The data must be a list of
+        dictionaries, with each dict representing a raw trace object.
         """
         return self._extra_traces
 
     @property
     def overlay_data(self):
-        """A `dcc.Store` containing the overlay data. The form of this
-        data is considered an implementation detail; users are expected to use
-        `create_overlay_data` to create it.
+        """A `dcc.Store` to be used an Output for the overlay data. The
+        form of this data is considered an implementation detail; users
+        are expected to use `create_overlay_data` to create it.
         """
         return self._overlay_data
 
