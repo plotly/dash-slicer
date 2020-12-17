@@ -214,6 +214,7 @@ class VolumeSlicer:
             "offset": shape3d_to_size2d(origin, axis),
             "stepsize": shape3d_to_size2d(spacing, axis),
             "color": color,
+            "infoid": np.random.randint(1, 9999999),
         }
 
         # Build the slicer
@@ -668,6 +669,7 @@ class VolumeSlicer:
                 Input(self._graph.id, "relayoutData"),
                 Input(self._timer.id, "n_intervals"),
             ],
+            prevent_initial_call=True,
         )
 
         # ----------------------------------------------------------------------
@@ -686,6 +688,10 @@ class VolumeSlicer:
 
             // Ready to apply and stop the timer, or return early?
             if (!(private_state.timeout && now >= private_state.timeout)) {
+                return dash_clientside.no_update;
+            }
+            // Give the plot time to settle the initial axis ranges
+            if (n_intervals < 5) {
                 return dash_clientside.no_update;
             }
 
@@ -733,10 +739,11 @@ class VolumeSlicer:
                 axis: info.axis,
                 color: info.color,
             };
-            if (index != private_state.last_index) {
+            if (index != private_state.last_index || info.infoid != private_state.infoid) {
                 private_state.last_index = index;
                 new_state.index_changed = true;
             }
+            private_state.infoid = info.infoid;  // infoid changes on hot reload
             return new_state;
         }
         """.replace(
