@@ -58,7 +58,10 @@ nav_table = html.Div(
 slicer_list.append(nav_table)
 
 app.layout = html.Div(
-    style={"display": "grid", "gridTemplateColumns": "33% 33% 33%",},
+    style={
+        "display": "grid",
+        "gridTemplateColumns": "33% 33% 33%",
+    },
     children=slicer_list,
 )
 
@@ -98,7 +101,11 @@ def write_to_position_table(x_val, y_val, z_val):
 # and set the position of the slicer accordingly
 @app.callback(
     Output(setpos_store.id, "data"),
-    [Input("x-nav", "value"), Input("y-nav", "value"), Input("z-nav", "value"),],
+    [
+        Input("x-nav", "value"),
+        Input("y-nav", "value"),
+        Input("z-nav", "value"),
+    ],
 )
 def write_table_values_to_slicer(x_pos, y_pos, z_pos):
     return z_pos, y_pos, x_pos
