@@ -220,12 +220,19 @@ class VolumeSlicer:
             "infoid": np.random.randint(1, 9999999),
         }
 
+        # Also store thumbnail size. The get_thumbnail_size() is a bit like
+        # a simulation to get the low-res size.
+        if self._thumbnail_param is None:
+            self._slice_info["thumbnail_size"] = self._slice_info["size"][:2]
+        else:
+            self._slice_info["thumbnail_size"] = get_thumbnail_size(
+                self._slice_info["size"][:2], self._thumbnail_param
+            )
+
         # Build the slicer
         self._create_dash_components()
         self._create_server_callbacks()
         self._create_client_callbacks()
-
-    # Note(AK): we could make some stores public, but let's do this only when actual use-cases arise?
 
     @property
     def scene_id(self) -> str:
@@ -360,15 +367,6 @@ class VolumeSlicer:
         """Create the graph, slider, figure, etc."""
         info = self._slice_info
 
-        # Prep low-res slices. The get_thumbnail_size() is a bit like
-        # a simulation to get the low-res size.
-        if self._thumbnail_param is None:
-            info["thumbnail_size"] = info["size"][:2]
-        else:
-            info["thumbnail_size"] = get_thumbnail_size(
-                info["size"][:2], self._thumbnail_param
-            )
-
         # Create the figure object - can be accessed by user via slicer.graph.figure
         self._fig = fig = plotly.graph_objects.Figure(data=[])
         fig.update_layout(
@@ -417,10 +415,10 @@ class VolumeSlicer:
         # A dict of static info for this slicer
         self._info = Store(id=self._subid("info"), data=info)
 
-        # A list of contrast limits
+        # A tuple representing the contrast limits
         self._clim = Store(id=self._subid("clim"), data=self._initial_clim)
 
-        # A list of low-res slices, or the full-res data (encoded as base64-png)
+        # A list of thumbnails (low-res, or the full-re, encoded as base64-png)
         self._thumbs_data = Store(id=self._subid("thumbs"), data=[])
 
         # A list of mask slices (encoded as base64-png or null)
@@ -431,13 +429,13 @@ class VolumeSlicer:
             id=self._subid("server-data"), data={"index": -1, "slice": None}
         )
 
-        # Store image traces for the slicer.
+        # Store image traces to show in the figure
         self._img_traces = Store(id=self._subid("img-traces"), data=[])
 
-        # Store indicator traces for the slicer.
+        # Store indicator traces to show in the figure
         self._indicator_traces = Store(id=self._subid("indicator-traces"), data=[])
 
-        # Store user traces for the slider.
+        # Store more (user-defined) traces to show in the figure
         self._extra_traces = Store(id=self._subid("extra-traces"), data=[])
 
         # A timer to apply a rate-limit between slider.value and index.data
@@ -502,12 +500,17 @@ class VolumeSlicer:
         #          \                   server_data (a new slice)
         #           \                         \
         #            \                         -->  image_traces
-        #             ----------------------- /           \
-        #                                                  ----->  figure
+        #             ------------------------/          \
+        #                                                 \
+        #        state (external)  -->  indicator_traces -- ----->  figure
         #                                                 /
-        #                                      indicator_traces
-        #                                               /
-        #                                             state (external)
+        #                                         extra_traces
+        #
+        # This figure is incomplete, for the sake of keeping it
+        # relatively simple. E.g. the thumbnail data is also an input
+        # for the callback that generates the image traces. And the
+        # clim store is an input for the callbacks that produce
+        # server_data and thumbnail data.
 
         app = self._app
 
