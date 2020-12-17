@@ -155,26 +155,6 @@ def test_create_overlay_data():
     assert isinstance(overlay, list) and len(overlay) == s.nslices
     assert all(isinstance(x, str) for x in overlay)
 
-    # Bool overlay - with color
-    overlay = s.create_overlay_data(vol > 10, "#ff0000")
-    assert isinstance(overlay, list) and len(overlay) == s.nslices
-    assert all(isinstance(x, str) for x in overlay)
-
-    # Bool overlay - with color rgb
-    overlay = s.create_overlay_data(vol > 10, [0, 255, 0])
-    assert isinstance(overlay, list) and len(overlay) == s.nslices
-    assert all(isinstance(x, str) for x in overlay)
-
-    # Bool overlay - with color rgba
-    overlay = s.create_overlay_data(vol > 10, [0, 255, 0, 100])
-    assert isinstance(overlay, list) and len(overlay) == s.nslices
-    assert all(isinstance(x, str) for x in overlay)
-
-    # Uint8 overlay - with colormap
-    overlay = s.create_overlay_data(vol.astype(np.uint8), ["#ff0000", "#00ff00"])
-    assert isinstance(overlay, list) and len(overlay) == s.nslices
-    assert all(isinstance(x, str) for x in overlay)
-
     # Reset
     overlay = s.create_overlay_data(None)
     assert isinstance(overlay, list) and len(overlay) == s.nslices
@@ -186,15 +166,5 @@ def test_create_overlay_data():
     assert all(x is None for x in overlay)
 
     # Wrong
-    with raises(ValueError):
-        s.create_overlay_data(vol > 10, "red")  # named colors not supported yet
-    with raises(ValueError):
-        s.create_overlay_data(vol > 10, [0, 255, 0, 100, 100])  # not a color
-    with raises(ValueError):
-        s.create_overlay_data(vol > 10, [0, 255])  # not a color
-    with raises(TypeError):
-        s.create_overlay_data("not a valid mask")
-    with raises(ValueError):
-        s.create_overlay_data(vol.astype(np.float32))  # wrong dtype
     with raises(ValueError):
         s.create_overlay_data(vol[:-1])  # wrong shape

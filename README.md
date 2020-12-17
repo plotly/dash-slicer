@@ -132,23 +132,23 @@ color can be a list of such colors, defining a colormap.
 
 **property `VolumeSlicer.axis`** (`int`): The axis to slice.
 
-**property `VolumeSlicer.clim`**: A `dcc.Store` representing the contrast limits as a 2-element tuple.
-This value should probably not be changed too often (e.g. on slider drag)
-because the thumbnail data is recreated on each change.
+**property `VolumeSlicer.clim`**: A `dcc.Store` to be used as Output, representing the contrast
+limits as a 2-element tuple. This value should probably not be
+changed too often (e.g. on slider drag) because the thumbnail
+data is recreated on each change.
 
-**property `VolumeSlicer.extra_traces`**: A `dcc.Store` that can be used as an output to define
-additional traces to be shown in this slicer. The data must be
-a list of dictionaries, with each dict representing a raw trace
-object.
+**property `VolumeSlicer.extra_traces`**: A `dcc.Store` to be used as an Output to define additional
+traces to be shown in this slicer. The data must be a list of
+dictionaries, with each dict representing a raw trace object.
 
 **property `VolumeSlicer.graph`**: The `dcc.Graph` for this slicer. Use `graph.figure` to access the
 Plotly Figure object.
 
 **property `VolumeSlicer.nslices`** (`int`): The number of slices for this slicer.
 
-**property `VolumeSlicer.overlay_data`**: A `dcc.Store` containing the overlay data. The form of this
-data is considered an implementation detail; users are expected to use
-`create_overlay_data` to create it.
+**property `VolumeSlicer.overlay_data`**: A `dcc.Store` to be used an Output for the overlay data. The
+form of this data is considered an implementation detail; users
+are expected to use `create_overlay_data` to create it.
 
 **property `VolumeSlicer.scene_id`** (`str`): The id of the "virtual scene" for this slicer. Slicers that have
 the same scene_id show each-other's positions.
@@ -158,7 +158,8 @@ don't want to use the slider, wrap it in a div with style
 `display: none`.
 
 **property `VolumeSlicer.state`**: A `dcc.Store` representing the current state of the slicer (present
-in slicer.stores). Its data is a dict with the fields:
+in slicer.stores). This store is intended for use as State or Input.
+Its data is a dict with the fields:
 
 * "index": the integer slice index.
 * "index_changed": a bool indicating whether the index changed since last time.
@@ -173,7 +174,8 @@ pattern matching Input. Its field are: context, scene, name.
 Where scene is the scene_id and name is "state".
 
 **property `VolumeSlicer.stores`**: A list of `dcc.Store` objects that the slicer needs to work.
-These must be added to the app layout.
+These must be added to the app layout. Note that public stores
+like `state` and `extra_traces` are also present in this list.
 
 
 

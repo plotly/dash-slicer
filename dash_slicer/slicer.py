@@ -85,11 +85,14 @@ import dash
 from dash.dependencies import Input, Output, State, ALL
 from dash_core_components import Graph, Slider, Store, Interval
 
-from .utils import img_array_to_uri, get_thumbnail_size, shape3d_to_size2d
+from .utils import (
+    discrete_colors,
+    img_array_to_uri,
+    get_thumbnail_size,
+    shape3d_to_size2d,
+    mask_to_coloured_slices,
+)
 
-
-# The default colors to use for indicators and overlays
-discrete_colors = plotly.colors.qualitative.D3
 
 _assigned_scene_ids = {}  # id(volume) -> str
 
@@ -170,14 +173,14 @@ class VolumeSlicer:
         elif isinstance(clim, (tuple, list)) and len(clim) == 2:
             self._initial_clim = float(clim[0]), float(clim[1])
         else:
-            raise ValueError("The clim must be None or a 2-tuple of floats.")
+            raise TypeError("The clim must be None or a 2-tuple of floats.")
 
         # Check and store thumbnail
         if not (isinstance(thumbnail, (int, bool))):
-            raise ValueError("thumbnail must be a boolean or an integer.")
-        if thumbnail is False:
+            raise TypeError("thumbnail must be a boolean or an integer.")
+        if not thumbnail:
             self._thumbnail_param = None
-        elif thumbnail is None or thumbnail is True:
+        elif thumbnail is True:
             self._thumbnail_param = 32  # default size
         else:
             thumbnail = int(thumbnail)
@@ -315,71 +318,13 @@ class VolumeSlicer:
         The color can be a hex color or an rgb/rgba tuple. Alternatively,
         color can be a list of such colors, defining a colormap.
         """
-        # Check the mask
         if mask is None:
             return [None for index in range(self.nslices)]  # A reset
-        elif not isinstance(mask, np.ndarray):
-            raise TypeError("Mask must be an ndarray or None.")
-        elif mask.dtype not in (np.bool, np.uint8):
-            raise ValueError(f"Mask must have bool or uint8 dtype, not {mask.dtype}.")
         elif mask.shape != self._volume.shape:
             raise ValueError(
                 f"Overlay must has shape {mask.shape}, but expected {self._volume.shape}"
             )
-        mask = mask.astype(np.uint8, copy=False)  # need int to index
-
-        # Create a colormap (list) from the given color(s)
-        if color is None:
-            colormap = discrete_colors[3:]
-        elif isinstance(color, str):
-            colormap = [color]
-        elif isinstance(color, (tuple, list)) and all(
-            isinstance(x, (int, float)) for x in color
-        ):
-            colormap = [color]
-        else:
-            colormap = list(color)
-
-        # Normalize the colormap so each element is a 4-element tuple
-        for i in range(len(colormap)):
-            c = colormap[i]
-            if isinstance(c, str):
-                if c.startswith("#"):
-                    c = plotly.colors.hex_to_rgb(c)
-                else:
-                    raise ValueError(
-                        "Named colors are not (yet) supported, hex colors are."
-                    )
-            c = tuple(int(x) for x in c)
-            if len(c) == 3:
-                c = c + (100,)
-            elif len(c) != 4:
-                raise ValueError("Expected color tuples to be 3 or 4 elements.")
-            colormap[i] = c
-
-        # Insert zero stub color for where mask is zero
-        colormap.insert(0, (0, 0, 0, 0))
-
-        # Produce slices (base64 png strings)
-        overlay_slices = []
-        for index in range(self.nslices):
-            # Sample the slice
-            indices = [slice(None), slice(None), slice(None)]
-            indices[self._axis] = index
-            im = mask[tuple(indices)]
-            max_mask = im.max()
-            if max_mask == 0:
-                # If the mask is all zeros, we can simply not draw it
-                overlay_slices.append(None)
-            else:
-                # Turn into rgba
-                while len(colormap) <= max_mask:
-                    colormap.append(colormap[-1])
-                colormap_arr = np.array(colormap)
-                rgba = colormap_arr[im]
-                overlay_slices.append(img_array_to_uri(rgba))
-
-        return overlay_slices
+        return mask_to_coloured_slices(mask, self._axis, color)
 
     def _subid(self, name, use_dict=False, **kwargs):
         """Given a name, get the full id including the context id prefix."""
@@ -418,7 +363,7 @@ class VolumeSlicer:
         # Prep low-res slices. The get_thumbnail_size() is a bit like
         # a simulation to get the low-res size.
         if self._thumbnail_param is None:
-            info["thumbnail_size"] = info["size"]
+            info["thumbnail_size"] = info["size"][:2]
         else:
             info["thumbnail_size"] = get_thumbnail_size(
                 info["size"][:2], self._thumbnail_param
