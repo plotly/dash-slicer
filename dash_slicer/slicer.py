@@ -286,9 +286,10 @@ class VolumeSlicer:
 
     @property
     def clim(self):
-        """A `dcc.Store` representing the contrast limits as a 2-element tuple.
-        This value should probably not be changed too often (e.g. on slider drag)
-        because the thumbnail data is recreated on each change.
+        """A `dcc.Store` to be used as Output, representing the contrast
+        limits as a 2-element tuple. This value should probably not be
+        changed too often (e.g. on slider drag) because the thumbnail
+        data is recreated on each change.
         """
         return self._clim
 
