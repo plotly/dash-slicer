@@ -176,17 +176,17 @@ class VolumeSlicer:
         if not (isinstance(thumbnail, (int, bool))):
             raise ValueError("thumbnail must be a boolean or an integer.")
         if thumbnail is False:
-            self._thumbnail = False
+            self._thumbnail_param = None
         elif thumbnail is None or thumbnail is True:
-            self._thumbnail = 32  # default size
+            self._thumbnail_param = 32  # default size
         else:
             thumbnail = int(thumbnail)
             if thumbnail >= np.max(volume.shape[:3]):
-                self._thumbnail = False  # dont go larger than image size
+                self._thumbnail_param = None  # dont go larger than image size
             elif thumbnail <= 0:
-                self._thumbnail = False  # consider 0 and -1 the same as False
+                self._thumbnail_param = None  # consider 0 and -1 the same as False
             else:
-                self._thumbnail = thumbnail
+                self._thumbnail_param = thumbnail
 
         # Check and store scene id, and generate
         if scene_id is None:
@@ -218,8 +218,7 @@ class VolumeSlicer:
 
         # Build the slicer
         self._create_dash_components()
-        if thumbnail:
-            self._create_server_callbacks()
+        self._create_server_callbacks()
         self._create_client_callbacks()
 
     # Note(AK): we could make some stores public, but let's do this only when actual use-cases arise?
@@ -415,13 +414,11 @@ class VolumeSlicer:
 
         # Prep low-res slices. The get_thumbnail_size() is a bit like
         # a simulation to get the low-res size.
-        if not self._thumbnail:
-            self._thumbnail_size_param = None
+        if self._thumbnail_param is None:
             info["thumbnail_size"] = info["size"]
         else:
-            self._thumbnail_size_param = self._thumbnail
             info["thumbnail_size"] = get_thumbnail_size(
-                info["size"][:2], self._thumbnail_size_param
+                info["size"][:2], self._thumbnail_param
             )
 
         # Create the figure object - can be accessed by user via slicer.graph.figure
@@ -527,22 +524,25 @@ class VolumeSlicer:
             [Input(self._clim.id, "data")],
         )
         def upload_thumbnails(clim):
-            thumbnail_size = self._thumbnail_size_param
             return [
-                img_array_to_uri(self._slice(i, clim), thumbnail_size)
+                img_array_to_uri(self._slice(i, clim), self._thumbnail_param)
                 for i in range(self.nslices)
             ]
 
-        @app.callback(
-            Output(self._server_data.id, "data"),
-            [Input(self._state.id, "data"), Input(self._clim.id, "data")],
-        )
-        def upload_requested_slice(state, clim):
-            if state is None or not state["index_changed"]:
-                return dash.no_update
-            index = state["index"]
-            slice = img_array_to_uri(self._slice(index, clim))
-            return {"index": index, "slice": slice}
+        if self._thumbnail_param is not None:
+            # The callback to push full-res slices to the client is only needed
+            # if the thumbnails are not already full-res.
+
+            @app.callback(
+                Output(self._server_data.id, "data"),
+                [Input(self._state.id, "data"), Input(self._clim.id, "data")],
+            )
+            def upload_requested_slice(state, clim):
+                if state is None or not state["index_changed"]:
+                    return dash.no_update
+                index = state["index"]
+                slice = img_array_to_uri(self._slice(index, clim))
+                return {"index": index, "slice": slice}
 
     def _create_client_callbacks(self):
         """Create the callbacks that run client-side."""
@@ -750,7 +750,7 @@ class VolumeSlicer:
                 State(self._info.id, "data"),
                 State(self._graph.id, "figure"),
             ],
-            # prevent_initial_call=True,
+            prevent_initial_call=True,
         )
 
         # ----------------------------------------------------------------------
@@ -806,9 +806,9 @@ class VolumeSlicer:
                 Input(self._slider.id, "value"),
                 Input(self._server_data.id, "data"),
                 Input(self._overlay_data.id, "data"),
+                Input(self._thumbs_data.id, "data"),
             ],
             [
-                State(self._thumbs_data.id, "data"),
                 State(self._info.id, "data"),
                 State(self._img_traces.id, "data"),
             ],

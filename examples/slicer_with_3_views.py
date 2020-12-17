@@ -34,7 +34,7 @@ fig.update_layout(uirevision="anything")  # prevent orientation reset on update
 app.layout = html.Div(
     style={
         "display": "grid",
-        "gridTemplateColumns": "40% 40%",
+        "gridTemplateColumns": "50% 50%",
     },
     children=[
         html.Div(
@@ -92,7 +92,9 @@ function update_3d_figure(states, ori_figure) {
         let s = {
             type: 'scatter3d',
             x: xyz[0], y: xyz[1], z: xyz[2],
-            mode: 'lines', line: {color: state.color}
+            mode: 'lines', line: {color: state.color},
+            hoverinfo: 'skip',
+            showlegend: false,
         };
         traces.push(s);
     }
