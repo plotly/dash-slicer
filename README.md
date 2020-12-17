@@ -72,6 +72,16 @@ On every PR, an app with the same name as your branch is deployed to the Dash
 playground instance so that you can change whether your changes did not break
 the package.
 
+Release procedure:
+
+* Bump version in `__init__.py` (and commit this change).
+* Run `git tag v?.? && git push origin v?.?`
+* On GH, turn that tag into a release and write release notes.
+* Clear the dist dir.
+* Run `python setup.py sdist bdist_wheel`
+* Run `twine upload dist/*`
+* Bump version of dash-slicer in dash-docs.
+
 
 ## Reference
 
