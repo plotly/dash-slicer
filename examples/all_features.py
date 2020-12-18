@@ -72,6 +72,8 @@ app.layout = html.Div(
             [
                 html.Div("Threshold level"),
                 dcc.Slider(id="level", max=2000, value=500),
+                html.Div("Contrast limits"),
+                dcc.RangeSlider(id="clim", max=2000, value=(0, 800)),
             ]
         ),
         dcc.Markdown(
@@ -170,6 +172,19 @@ def update_contour(state, level):
             }
         )
     return traces
+
+
+# Callback to set contrast limits
+@app.callback(
+    [
+        Output(slicer0.clim.id, "data"),
+        Output(slicer1.clim.id, "data"),
+        Output(slicer2.clim.id, "data"),
+    ],
+    [Input("clim", "value")],
+)
+def update_clim(clim):
+    return [clim, clim, clim]
 
 
 if __name__ == "__main__":
