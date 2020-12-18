@@ -1,9 +1,5 @@
 """
 Setup script to distribute dash-slicer.
-
-* clear your dist dir
-* python setup.py sdist bdist_wheel
-* twine upload dist/*
 """
 
 import re

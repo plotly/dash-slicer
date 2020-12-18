@@ -85,11 +85,14 @@ import dash
 from dash.dependencies import Input, Output, State, ALL
 from dash_core_components import Graph, Slider, Store, Interval
 
-from .utils import img_array_to_uri, get_thumbnail_size, shape3d_to_size2d
+from .utils import (
+    discrete_colors,
+    img_array_to_uri,
+    get_thumbnail_size,
+    shape3d_to_size2d,
+    mask_to_coloured_slices,
+)
 
-
-# The default colors to use for indicators and overlays
-discrete_colors = plotly.colors.qualitative.D3
 
 _assigned_scene_ids = {}  # id(volume) -> str
 
@@ -170,14 +173,14 @@ class VolumeSlicer:
         elif isinstance(clim, (tuple, list)) and len(clim) == 2:
             self._initial_clim = float(clim[0]), float(clim[1])
         else:
-            raise ValueError("The clim must be None or a 2-tuple of floats.")
+            raise TypeError("The clim must be None or a 2-tuple of floats.")
 
         # Check and store thumbnail
         if not (isinstance(thumbnail, (int, bool))):
-            raise ValueError("thumbnail must be a boolean or an integer.")
-        if thumbnail is False:
+            raise TypeError("thumbnail must be a boolean or an integer.")
+        if not thumbnail:
             self._thumbnail_param = None
-        elif thumbnail is None or thumbnail is True:
+        elif thumbnail is True:
             self._thumbnail_param = 32  # default size
         else:
             thumbnail = int(thumbnail)
@@ -214,14 +217,22 @@ class VolumeSlicer:
             "offset": shape3d_to_size2d(origin, axis),
             "stepsize": shape3d_to_size2d(spacing, axis),
             "color": color,
+            "infoid": np.random.randint(1, 9999999),
         }
+
+        # Also store thumbnail size. The get_thumbnail_size() is a bit like
+        # a simulation to get the low-res size.
+        if self._thumbnail_param is None:
+            self._slice_info["thumbnail_size"] = self._slice_info["size"][:2]
+        else:
+            self._slice_info["thumbnail_size"] = get_thumbnail_size(
+                self._slice_info["size"][:2], self._thumbnail_param
+            )
 
         # Build the slicer
         self._create_dash_components()
         self._create_server_callbacks()
         self._create_client_callbacks()
-
-    # Note(AK): we could make some stores public, but let's do this only when actual use-cases arise?
 
     @property
     def scene_id(self) -> str:
@@ -258,14 +269,16 @@ class VolumeSlicer:
     @property
     def stores(self):
         """A list of `dcc.Store` objects that the slicer needs to work.
-        These must be added to the app layout.
+        These must be added to the app layout. Note that public stores
+        like `state` and `extra_traces` are also present in this list.
         """
         return self._stores
 
     @property
     def state(self):
         """A `dcc.Store` representing the current state of the slicer (present
-        in slicer.stores). Its data is a dict with the fields:
+        in slicer.stores). This store is intended for use as State or Input.
+        Its data is a dict with the fields:
 
         * "index": the integer slice index.
         * "index_changed": a bool indicating whether the index changed since last time.
@@ -283,26 +296,26 @@ class VolumeSlicer:
 
     @property
     def clim(self):
-        """A `dcc.Store` representing the contrast limits as a 2-element tuple.
-        This value should probably not be changed too often (e.g. on slider drag)
-        because the thumbnail data is recreated on each change.
+        """A `dcc.Store` to be used as Output, representing the contrast
+        limits as a 2-element tuple. This value should probably not be
+        changed too often (e.g. on slider drag) because the thumbnail
+        data is recreated on each change.
         """
         return self._clim
 
     @property
     def extra_traces(self):
-        """A `dcc.Store` that can be used as an output to define
-        additional traces to be shown in this slicer. The data must be
-        a list of dictionaries, with each dict representing a raw trace
-        object.
+        """A `dcc.Store` to be used as an Output to define additional
+        traces to be shown in this slicer. The data must be a list of
+        dictionaries, with each dict representing a raw trace object.
         """
         return self._extra_traces
 
     @property
     def overlay_data(self):
-        """A `dcc.Store` containing the overlay data. The form of this
-        data is considered an implementation detail; users are expected to use
-        `create_overlay_data` to create it.
+        """A `dcc.Store` to be used an Output for the overlay data. The
+        form of this data is considered an implementation detail; users
+        are expected to use `create_overlay_data` to create it.
         """
         return self._overlay_data
 
@@ -312,71 +325,13 @@ class VolumeSlicer:
         The color can be a hex color or an rgb/rgba tuple. Alternatively,
         color can be a list of such colors, defining a colormap.
         """
-        # Check the mask
         if mask is None:
             return [None for index in range(self.nslices)]  # A reset
-        elif not isinstance(mask, np.ndarray):
-            raise TypeError("Mask must be an ndarray or None.")
-        elif mask.dtype not in (np.bool, np.uint8):
-            raise ValueError(f"Mask must have bool or uint8 dtype, not {mask.dtype}.")
         elif mask.shape != self._volume.shape:
             raise ValueError(
                 f"Overlay must has shape {mask.shape}, but expected {self._volume.shape}"
             )
-        mask = mask.astype(np.uint8, copy=False)  # need int to index
-
-        # Create a colormap (list) from the given color(s)
-        if color is None:
-            colormap = discrete_colors[3:]
-        elif isinstance(color, str):
-            colormap = [color]
-        elif isinstance(color, (tuple, list)) and all(
-            isinstance(x, (int, float)) for x in color
-        ):
-            colormap = [color]
-        else:
-            colormap = list(color)
-
-        # Normalize the colormap so each element is a 4-element tuple
-        for i in range(len(colormap)):
-            c = colormap[i]
-            if isinstance(c, str):
-                if c.startswith("#"):
-                    c = plotly.colors.hex_to_rgb(c)
-                else:
-                    raise ValueError(
-                        "Named colors are not (yet) supported, hex colors are."
-                    )
-            c = tuple(int(x) for x in c)
-            if len(c) == 3:
-                c = c + (100,)
-            elif len(c) != 4:
-                raise ValueError("Expected color tuples to be 3 or 4 elements.")
-            colormap[i] = c
-
-        # Insert zero stub color for where mask is zero
-        colormap.insert(0, (0, 0, 0, 0))
-
-        # Produce slices (base64 png strings)
-        overlay_slices = []
-        for index in range(self.nslices):
-            # Sample the slice
-            indices = [slice(None), slice(None), slice(None)]
-            indices[self._axis] = index
-            im = mask[tuple(indices)]
-            max_mask = im.max()
-            if max_mask == 0:
-                # If the mask is all zeros, we can simply not draw it
-                overlay_slices.append(None)
-            else:
-                # Turn into rgba
-                while len(colormap) <= max_mask:
-                    colormap.append(colormap[-1])
-                colormap_arr = np.array(colormap)
-                rgba = colormap_arr[im]
-                overlay_slices.append(img_array_to_uri(rgba))
-
-        return overlay_slices
+        return mask_to_coloured_slices(mask, self._axis, color)
 
     def _subid(self, name, use_dict=False, **kwargs):
         """Given a name, get the full id including the context id prefix."""
@@ -411,15 +366,6 @@ class VolumeSlicer:
     def _create_dash_components(self):
         """Create the graph, slider, figure, etc."""
         info = self._slice_info
-
-        # Prep low-res slices. The get_thumbnail_size() is a bit like
-        # a simulation to get the low-res size.
-        if self._thumbnail_param is None:
-            info["thumbnail_size"] = info["size"]
-        else:
-            info["thumbnail_size"] = get_thumbnail_size(
-                info["size"][:2], self._thumbnail_param
-            )
 
         # Create the figure object - can be accessed by user via slicer.graph.figure
         self._fig = fig = plotly.graph_objects.Figure(data=[])
@@ -469,10 +415,10 @@ class VolumeSlicer:
         # A dict of static info for this slicer
         self._info = Store(id=self._subid("info"), data=info)
 
-        # A list of contrast limits
+        # A tuple representing the contrast limits
         self._clim = Store(id=self._subid("clim"), data=self._initial_clim)
 
-        # A list of low-res slices, or the full-res data (encoded as base64-png)
+        # A list of thumbnails (low-res, or the full-re, encoded as base64-png)
         self._thumbs_data = Store(id=self._subid("thumbs"), data=[])
 
         # A list of mask slices (encoded as base64-png or null)
@@ -483,13 +429,13 @@ class VolumeSlicer:
             id=self._subid("server-data"), data={"index": -1, "slice": None}
         )
 
-        # Store image traces for the slicer.
+        # Store image traces to show in the figure
         self._img_traces = Store(id=self._subid("img-traces"), data=[])
 
-        # Store indicator traces for the slicer.
+        # Store indicator traces to show in the figure
         self._indicator_traces = Store(id=self._subid("indicator-traces"), data=[])
 
-        # Store user traces for the slider.
+        # Store more (user-defined) traces to show in the figure
         self._extra_traces = Store(id=self._subid("extra-traces"), data=[])
 
         # A timer to apply a rate-limit between slider.value and index.data
@@ -554,12 +500,17 @@ class VolumeSlicer:
         #          \                   server_data (a new slice)
         #           \                         \
         #            \                         -->  image_traces
-        #             ----------------------- /           \
-        #                                                  ----->  figure
+        #             ------------------------/          \
+        #                                                 \
+        #        state (external)  -->  indicator_traces -- ----->  figure
         #                                                 /
-        #                                      indicator_traces
-        #                                               /
-        #                                             state (external)
+        #                                         extra_traces
+        #
+        # This figure is incomplete, for the sake of keeping it
+        # relatively simple. E.g. the thumbnail data is also an input
+        # for the callback that generates the image traces. And the
+        # clim store is an input for the callbacks that produce
+        # server_data and thumbnail data.
 
         app = self._app
 
@@ -667,6 +618,7 @@ class VolumeSlicer:
                 Input(self._graph.id, "relayoutData"),
                 Input(self._timer.id, "n_intervals"),
             ],
+            prevent_initial_call=True,
         )
 
         # ----------------------------------------------------------------------
@@ -685,6 +637,10 @@ class VolumeSlicer:
 
             // Ready to apply and stop the timer, or return early?
             if (!(private_state.timeout && now >= private_state.timeout)) {
+                return dash_clientside.no_update;
+            }
+            // Give the plot time to settle the initial axis ranges
+            if (n_intervals < 5) {
                 return dash_clientside.no_update;
             }
 
@@ -732,10 +688,11 @@ class VolumeSlicer:
                 axis: info.axis,
                 color: info.color,
             };
-            if (index != private_state.last_index) {
+            if (index != private_state.last_index || info.infoid != private_state.infoid) {
                 private_state.last_index = index;
                 new_state.index_changed = true;
             }
+            private_state.infoid = info.infoid;  // infoid changes on hot reload
             return new_state;
         }
         """.replace(

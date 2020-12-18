@@ -1,4 +1,6 @@
 __pycache__
+.coverage
+htmlcov/
 *.pyc
 *.pyo
 *.egg-info

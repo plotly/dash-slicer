@@ -3,6 +3,7 @@ from dash_slicer.utils import (
     img_array_to_uri,
     get_thumbnail_size,
     shape3d_to_size2d,
+    mask_to_coloured_slices,
 )
 
 import numpy as np
@@ -58,3 +59,55 @@ def test_shape3d_to_size2d():
 
     with raises(IndexError):
         shape3d_to_size2d((12, 13, 14), 3)
+
+
+def test_mask_to_coloured_slices():
+    vol = np.random.uniform(0, 255, (10, 20, 30)).astype(np.uint8)
+    mask = vol > 20
+
+    # Check handling of axis
+    assert len(mask_to_coloured_slices(mask, 0)) == 10
+    assert len(mask_to_coloured_slices(mask, 1)) == 20
+    assert len(mask_to_coloured_slices(mask, 2)) == 30
+
+    # Bool overlay
+    overlay = mask_to_coloured_slices(mask, 0)
+    assert isinstance(overlay, list)
+    assert all(isinstance(x, str) for x in overlay)
+
+    # Bool overlay - with color
+    overlay = mask_to_coloured_slices(mask, 0, "#ff0000")
+    assert isinstance(overlay, list)
+    assert all(isinstance(x, str) for x in overlay)
+
+    # Bool overlay - with color rgb
+    overlay = mask_to_coloured_slices(mask, 0, [0, 255, 0])
+    assert all(isinstance(x, str) for x in overlay)
+
+    # Bool overlay - with color rgba
+    overlay = mask_to_coloured_slices(mask, 0, [0, 255, 0, 100])
+    assert all(isinstance(x, str) for x in overlay)
+
+    # Uint8 overlay - with colormap
+    overlay = mask_to_coloured_slices(vol.astype(np.uint8), 0, ["#ff0000", "#00ff00"])
+    assert all(isinstance(x, str) for x in overlay)
+
+    # Reset by zero mask
+    overlay = mask_to_coloured_slices(vol > 300, 0)
+    assert all(x is None for x in overlay)
+
+    # Wrong
+    with raises(ValueError):
+        mask_to_coloured_slices(mask, 0, "red")  # named colors not supported yet
+    with raises(ValueError):
+        mask_to_coloured_slices(mask, 0, [0, 255, 0, 100, 100])  # not a color
+    with raises(ValueError):
+        mask_to_coloured_slices(mask, 0, [0, 255])  # not a color
+    with raises(TypeError):
+        mask_to_coloured_slices("not a valid mask", 0)
+    with raises(TypeError):
+        mask_to_coloured_slices(
+            None, 0
+        )  # note that the mask in create_overlay_data can be None
+    with raises(ValueError):
+        mask_to_coloured_slices(vol.astype(np.float32), 0)  # wrong dtype
