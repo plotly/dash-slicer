@@ -9,6 +9,7 @@ import dash_core_components as dcc
 from dash_slicer import VolumeSlicer
 from dash.dependencies import Input, Output, State, ALL
 import imageio
+from skimage import measure
 
 
 app = dash.Dash(__name__, update_title=None)
@@ -67,16 +68,36 @@ app.layout = html.Div(
                 dcc.Graph(id="3Dgraph", figure=go.Figure()),
             ]
         ),
+        html.Div(
+            [
+                html.Div("Threshold level"),
+                dcc.Slider(id="level", max=2000, value=500),
+                html.Div("Contrast limits"),
+                dcc.RangeSlider(id="clim", max=2000, value=(0, 800)),
+            ]
+        ),
         dcc.Markdown(
             """
             Take note of:
-            * Full-res thumbnails for axis 0.
-            * Very low-res thumbnails for axis 1.
-            * Default low-res thumbnails for axis 2.
-            * The `reverse_y` is false for axis 1.
-            * Elongated voxels for axis 1 and 2.
-            * An origin in the thousands, visible in the 3D view.
-            * A custom brighter green for axis 2.
+
+            Axis 0:
+            * Full-res thumbnails.
+
+            Axis 1:
+            * Very low-res thumbnails.
+            * Elongated voxels.
+            * The `reverse_y` is false.
+            * Yellow overlay based on threshold.
+
+            Axis 2:
+            * Default low-res thumbnails.
+            * Elongated voxels.
+            * Yellow contour based on threshold..
+            * A custom brighter green indicator.
+
+            3D view:
+            * An origin in the thousands.
+
             """
         ),
     ],
@@ -101,7 +122,9 @@ function update_3d_figure(states, ori_figure) {
         let s = {
             type: 'scatter3d',
             x: xyz[0], y: xyz[1], z: xyz[2],
-            mode: 'lines', line: {color: state.color}
+            mode: 'lines', line: {color: state.color},
+            hoverinfo: 'skip',
+            showlegend: false,
         };
         traces.push(s);
     }
@@ -114,6 +137,54 @@ function update_3d_figure(states, ori_figure) {
     [Input({"scene": slicer0.scene_id, "context": ALL, "name": "state"}, "data")],
     [State("3Dgraph", "figure")],
 )
+
+
+# Callback to add overlay in axis 1
+@app.callback(
+    Output(slicer1.overlay_data.id, "data"),
+    [Input("level", "value")],
+)
+def update_overlay(level):
+    return slicer1.create_overlay_data(vol > level, "#ffff00")
+
+
+# Callback to add contours in axes 2
+@app.callback(
+    Output(slicer2.extra_traces.id, "data"),
+    [Input(slicer2.state.id, "data"), Input("level", "value")],
+)
+def update_contour(state, level):
+    if not state:
+        return dash.no_update
+    slice = vol[:, :, state["index"]]
+    contours = measure.find_contours(slice, level)
+    traces = []
+    for contour in contours:
+        traces.append(
+            {
+                "type": "scatter",
+                "mode": "lines",
+                "line": {"color": "yellow", "width": 3},
+                "x": contour[:, 1] * spacing[1] + ori[1],
+                "y": contour[:, 0] * spacing[0] + ori[0],
+                "hoverinfo": "skip",
+                "showlegend": False,
+            }
+        )
+    return traces
+
+
+# Callback to set contrast limits
+@app.callback(
+    [
+        Output(slicer0.clim.id, "data"),
+        Output(slicer1.clim.id, "data"),
+        Output(slicer2.clim.id, "data"),
+    ],
+    [Input("clim", "value")],
+)
+def update_clim(clim):
+    return [clim, clim, clim]
 
 
 if __name__ == "__main__":
