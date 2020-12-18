@@ -1,5 +1,7 @@
 """
-An example that demonstrates how the slicer's index can be both read and written.
+An simple example that demonstrates how the slicer's index can be both read and written.
+
+See set_slicer_position_interactively.py for a more advanced / realistic example.
 """
 
 import dash
