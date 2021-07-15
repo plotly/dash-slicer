@@ -14,6 +14,7 @@ from dash_slicer import VolumeSlicer
 import numpy as np
 import imageio
 
+import plotly.express as px
 
 app = dash.Dash(__name__, update_title=None)
 server = app.server
@@ -40,18 +41,24 @@ app.layout = html.Div(
 
 
 # Define colormap to make the lower threshold shown in yellow, and higher in red
-colormap = [(255, 255, 0, 50), (255, 0, 0, 100)]
-
+COLORMAP = px.colors.sequential.Turbo
+# If the px color map uses RBG values, then enable this to convert to series of ints
+# for i, c in enumerate(COLORMAP):
+#     COLORMAP[i] = c.strip("rgb(").strip(')').split(',')
 
 @app.callback(
     Output(slicer.overlay_data.id, "data"),
     [Input("level-slider", "value")],
 )
 def apply_levels(level):
+    n_bins = len(COLORMAP)
     mask = np.zeros(vol.shape, np.uint8)
-    mask += vol > level[0]
-    mask += vol > level[1]
-    return slicer.create_overlay_data(mask, colormap)
+    data_range = vol.max() - vol.min()
+    thresholds = [ vol.min() + i * data_range / n_bins for i in range(1,n_bins + 1) ]
+
+    for i in range(n_bins):
+        mask += vol < thresholds[i]
+    return slicer.create_overlay_data(mask, COLORMAP)
 
 
 if __name__ == "__main__":
