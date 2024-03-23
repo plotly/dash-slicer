@@ -4,8 +4,8 @@ An example that is (tries to be) a demo of all features.
 
 import plotly.graph_objects as go
 import dash
-import dash_html_components as html
-import dash_core_components as dcc
+from dash import html
+from dash import dcc
 from dash_slicer import VolumeSlicer
 from dash.dependencies import Input, Output, State, ALL
 import imageio

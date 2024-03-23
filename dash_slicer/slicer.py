@@ -83,7 +83,7 @@ import numpy as np
 import plotly.graph_objects
 import dash
 from dash.dependencies import Input, Output, State, ALL
-from dash_core_components import Graph, Slider, Store, Interval
+from dash.dcc import Graph, Slider, Store, Interval
 
 from .utils import (
     discrete_colors,

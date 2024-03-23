@@ -5,8 +5,8 @@ slicing through a volume using a slider.
 
 import plotly.graph_objects as go
 import dash
-import dash_html_components as html
-import dash_core_components as dcc
+from dash import html
+from dash import dcc
 from dash.dependencies import Input, Output, State
 import imageio
 from dash_slicer.utils import img_array_to_uri

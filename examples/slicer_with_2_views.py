@@ -3,7 +3,7 @@ An example with two slicers on the same volume.
 """
 
 import dash
-import dash_html_components as html
+from dash import html
 from dash_slicer import VolumeSlicer
 import imageio
 
