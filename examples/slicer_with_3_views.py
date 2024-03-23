@@ -5,8 +5,8 @@ in medical applications. In the fourth quadrant we put an isosurface mesh.
 
 import plotly.graph_objects as go
 import dash
-import dash_html_components as html
-import dash_core_components as dcc
+from dash import html
+from dash import dcc
 from dash_slicer import VolumeSlicer
 from dash.dependencies import Input, Output, State, ALL
 from skimage.measure import marching_cubes
