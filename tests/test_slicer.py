@@ -3,7 +3,7 @@ from dash_slicer import VolumeSlicer
 import numpy as np
 from pytest import raises
 import dash
-import dash_core_components as dcc
+from dash import dcc
 
 
 def test_slicer_init():
