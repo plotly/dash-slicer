@@ -3,7 +3,7 @@ version: 2.0
 jobs:
   deploy_to_playground:
     docker:
-      - image: circleci/python:3.6-stretch
+      - image: circleci/python:3.12-stretch
     steps:
       - checkout
       - run:
