@@ -81,7 +81,7 @@ def mask_to_coloured_slices(mask, axis, color=None):
     # Check the mask
     if not isinstance(mask, np.ndarray):
         raise TypeError("Mask must be an ndarray or None.")
-    elif mask.dtype not in (np.bool, np.uint8):
+    elif mask.dtype not in (bool, np.uint8):
         raise ValueError(f"Mask must have bool or uint8 dtype, not {mask.dtype}.")
 
     mask = mask.astype(np.uint8, copy=False)  # need int to index
