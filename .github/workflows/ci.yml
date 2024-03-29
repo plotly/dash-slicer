@@ -13,26 +13,30 @@ jobs:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - name: Linux py36
-            os: ubuntu-16.04
-            pyversion: '3.6'
-          - name: Linux py37
-            os: ubuntu-latest
-            pyversion: '3.7'
           - name: Linux py38
             os: ubuntu-latest
             pyversion: '3.8'
           - name: Linux py39
             os: ubuntu-latest
             pyversion: '3.9'
-          - name: MacOS py38
+          - name: Linux py310
+            os: ubuntu-latest
+            pyversion: '3.10'
+          - name: Linux py311
+            os: ubuntu-latest
+            pyversion: '3.11'
+          - name: Linux py312
+            os: ubuntu-latest
+            pyversion: '3.12'
+          - name: MacOS py312
             os: macos-latest
-            pyversion: '3.8'
-          - name: Windows py38
+            pyversion: '3.12'
+          - name: Windows py312
             os: windows-latest
-            pyversion: '3.8'
+            pyversion: '3.12'
 
     steps:
       - uses: actions/checkout@v2
