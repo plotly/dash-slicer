@@ -10,6 +10,11 @@ mask overlays, and more.
 
 <img width='700' src='https://user-images.githubusercontent.com/3015475/102329845-28a67880-3f89-11eb-82de-2cc2ff463a53.png'></img>
 
+<div align="center">
+  <a href="https://dash.plotly.com/project-maintenance">
+    <img src="https://dash.plotly.com/assets/images/maintained-by-community.png" width="600px" alt="Maintained by the Plotly Community">
+  </a>
+</div>
 
 ## Status
 
