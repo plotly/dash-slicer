@@ -146,6 +146,8 @@ class VolumeSlicer:
         scene_id=None,
         color=None,
         thumbnail=True,
+        step=1,
+        marks=None,
     ):
 
         if not isinstance(app, dash.Dash):
@@ -230,7 +232,7 @@ class VolumeSlicer:
             )
 
         # Build the slicer
-        self._create_dash_components()
+        self._create_dash_components(step, marks)
         self._create_server_callbacks()
         self._create_client_callbacks()
 
@@ -363,7 +365,7 @@ class VolumeSlicer:
         im[im > 255] = 255
         return im.astype(np.uint8)
 
-    def _create_dash_components(self):
+    def _create_dash_components(self, step, marks):
         """Create the graph, slider, figure, etc."""
         info = self._slice_info
 
@@ -404,10 +406,11 @@ class VolumeSlicer:
             id=self._subid("slider"),
             min=0,
             max=info["size"][2] - 1,
-            step=1,
+            step=step,
             value=info["size"][2] // 2,
             updatemode="drag",
             tooltip={"always_visible": False, "placement": "left"},
+            marks=marks,
         )
 
         # Create the stores that we need (these must be present in the layout)
